@@ -207,6 +207,13 @@ export async function addComment(
   return { ok: true, comment: { id, body: clean, createdAt: createdAt.toISOString() } }
 }
 
+/** Remove a single comment. Used by moderators/administrators. */
+export async function deleteComment(commentId: string): Promise<void> {
+  await db.delete(comments).where(eq(comments.id, commentId))
+  revalidatePath('/')
+  revalidatePath('/admin')
+}
+
 // ---------------------------------------------------------------------------
 // Admin credentials
 // ---------------------------------------------------------------------------
@@ -380,4 +387,11 @@ export async function voteDish(
     })
     .where(eq(dishes.id, dishId))
   revalidatePath('/')
+}
+
+/** Clear a dish's rank entirely (both thumbs to zero). Moderator/admin only. */
+export async function resetDishRank(dishId: string): Promise<void> {
+  await db.update(dishes).set({ thumbsUp: 0, thumbsDown: 0 }).where(eq(dishes.id, dishId))
+  revalidatePath('/')
+  revalidatePath('/admin')
 }

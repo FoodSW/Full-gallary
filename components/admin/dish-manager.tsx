@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react"
 import Image from "next/image"
-import { ImageIcon, Loader2, Plus, Trash2, UploadCloud, X } from "lucide-react"
+import { ImageIcon, Loader2, MessageSquare, Plus, RotateCcw, ThumbsDown, ThumbsUp, Trash2, UploadCloud, X } from "lucide-react"
 import { type Vessel } from "@/lib/gallery-data"
 import { useGalleryStore } from "@/lib/gallery-store"
 import exifr from "exifr"
@@ -32,11 +32,13 @@ type PendingFile = {
 }
 
 export function DishManager({ vessel }: DishManagerProps) {
-  const { addDish, deleteDish } = useGalleryStore()
+  const { addDish, deleteDish, resetDishRank, deleteComment } = useGalleryStore()
   const fileRef = useRef<HTMLInputElement>(null)
   const [pending, setPending] = useState<PendingFile[]>([])
   const [dragging, setDragging] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  // Which dish's moderation panel (rank + comments) is expanded.
+  const [openDishId, setOpenDishId] = useState<string | null>(null)
 
   // -------------------------------------------------------------------------
   // Helpers
@@ -165,6 +167,9 @@ export function DishManager({ vessel }: DishManagerProps) {
   const existingSorted = [...vessel.dishes].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   )
+
+  // The dish whose moderation panel is open (kept in sync with store updates).
+  const openDish = openDishId ? vessel.dishes.find((d) => d.id === openDishId) ?? null : null
 
   const anyPending = pending.length > 0
   const allUploaded = pending.every((p) => p.status === "done")
@@ -306,37 +311,152 @@ export function DishManager({ vessel }: DishManagerProps) {
         </p>
       ) : (
         <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
-          {existingSorted.map((dish) => (
-            <div
-              key={dish.id}
-              className="group relative overflow-hidden rounded-md border border-border"
-            >
-              <div className="relative aspect-square">
+          {existingSorted.map((dish) => {
+            const isOpen = openDishId === dish.id
+            return (
+              <div
+                key={dish.id}
+                className={[
+                  "group relative overflow-hidden rounded-md border transition-colors",
+                  isOpen ? "border-gold ring-2 ring-gold/40" : "border-border",
+                ].join(" ")}
+              >
+                <button
+                  type="button"
+                  onClick={() => setOpenDishId(isOpen ? null : dish.id)}
+                  className="block w-full text-left"
+                  aria-label="Moderate this photo"
+                  aria-expanded={isOpen}
+                >
+                  <span className="relative block aspect-square">
+                    <Image
+                      src={dish.image || "/placeholder.svg"}
+                      alt="Galley dish"
+                      fill
+                      sizes="120px"
+                      className="object-cover"
+                    />
+                  </span>
+                  <span className="flex items-center justify-between px-1.5 py-1 text-[11px] text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      {dish.comments.length > 0 && (
+                        <span className="flex items-center gap-0.5">
+                          <MessageSquare size={10} aria-hidden />
+                          {dish.comments.length}
+                        </span>
+                      )}
+                    </span>
+                    <span className="font-semibold text-gold">
+                      {dish.thumbsUp - dish.thumbsDown > 0 ? "+" : ""}
+                      {dish.thumbsUp - dish.thumbsDown}
+                    </span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => deleteDish("", dish.id)}
+                  aria-label="Delete photo"
+                  className="absolute right-1 top-1 flex size-6 items-center justify-center rounded-full bg-danger text-primary-foreground opacity-0 transition-opacity group-hover:opacity-100"
+                >
+                  <Trash2 size={13} aria-hidden />
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* ── Moderation panel for the selected photo ───────────────────────── */}
+      {openDish && (
+        <div className="space-y-4 rounded-md border border-gold/40 bg-card/60 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="relative size-14 shrink-0 overflow-hidden rounded-md border border-border">
                 <Image
-                  src={dish.image || "/placeholder.svg"}
-                  alt="Galley dish"
+                  src={openDish.image || "/placeholder.svg"}
+                  alt="Selected dish"
                   fill
-                  sizes="120px"
+                  sizes="56px"
                   className="object-cover"
                 />
               </div>
-              <div className="flex items-center justify-between px-1.5 py-1 text-[11px] text-muted-foreground">
-                <span>{new Date(dish.date).toLocaleDateString()}</span>
-                <span className="font-semibold text-gold">
-                  {dish.thumbsUp - dish.thumbsDown > 0 ? "+" : ""}
-                  {dish.thumbsUp - dish.thumbsDown}
-                </span>
+              <div>
+                <p className="text-sm font-semibold text-card-foreground">Moderate photo</p>
+                <p className="text-xs text-muted-foreground">
+                  {new Date(openDish.date).toLocaleDateString()}
+                </p>
               </div>
-              <button
-                type="button"
-                onClick={() => deleteDish("", dish.id)}
-                aria-label="Delete photo"
-                className="absolute right-1 top-1 flex size-6 items-center justify-center rounded-full bg-danger text-primary-foreground opacity-0 transition-opacity group-hover:opacity-100"
-              >
-                <Trash2 size={13} aria-hidden />
-              </button>
             </div>
-          ))}
+            <button
+              type="button"
+              onClick={() => setOpenDishId(null)}
+              aria-label="Close moderation panel"
+              className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <X size={16} aria-hidden />
+            </button>
+          </div>
+
+          {/* Rank moderation */}
+          <div className="flex flex-wrap items-center gap-3 rounded-md border border-border bg-background/50 px-3 py-2.5">
+            <span className="flex items-center gap-1 text-sm text-muted-foreground">
+              <ThumbsUp size={14} className="text-gold" aria-hidden />
+              {openDish.thumbsUp}
+            </span>
+            <span className="flex items-center gap-1 text-sm text-muted-foreground">
+              <ThumbsDown size={14} aria-hidden />
+              {openDish.thumbsDown}
+            </span>
+            <span className="text-sm font-semibold text-gold">
+              Rank {openDish.thumbsUp - openDish.thumbsDown > 0 ? "+" : ""}
+              {openDish.thumbsUp - openDish.thumbsDown}
+            </span>
+            <button
+              type="button"
+              onClick={() => resetDishRank(openDish.id)}
+              disabled={openDish.thumbsUp === 0 && openDish.thumbsDown === 0}
+              className="ml-auto flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-danger hover:text-danger disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <RotateCcw size={13} aria-hidden />
+              Reset rank
+            </button>
+          </div>
+
+          {/* Comment moderation */}
+          <div className="space-y-2">
+            <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <MessageSquare size={13} aria-hidden />
+              {openDish.comments.length} comment{openDish.comments.length === 1 ? "" : "s"}
+            </p>
+            {openDish.comments.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No comments to moderate.</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {openDish.comments.map((c) => (
+                  <li
+                    key={c.id}
+                    className="flex items-start justify-between gap-3 rounded-md border border-border bg-background/50 px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="break-words text-sm text-card-foreground">{c.body}</p>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">
+                        {new Date(c.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => deleteComment(openDish.id, c.id)}
+                      aria-label="Delete comment"
+                      className="flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground transition-colors hover:border-danger hover:text-danger"
+                    >
+                      <Trash2 size={13} aria-hidden />
+                      Delete
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       )}
     </div>

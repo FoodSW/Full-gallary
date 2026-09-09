@@ -11,7 +11,9 @@ import {
   addDish as addDishAction,
   deleteDish as deleteDishAction,
   voteDish as voteDishAction,
+  resetDishRank as resetDishRankAction,
   addComment as addCommentAction,
+  deleteComment as deleteCommentAction,
 } from "@/app/actions/gallery"
 import type { Dish, RankedDish, Vessel } from "@/lib/gallery-data"
 import { dishRank } from "@/lib/gallery-data"
@@ -24,7 +26,9 @@ type GalleryStore = {
   vessels: Vessel[]
   ready: boolean
   voteDish: (dishId: string, deltaUp: number, deltaDown: number) => void
+  resetDishRank: (dishId: string) => void
   addComment: (dishId: string, body: string) => void
+  deleteComment: (dishId: string, commentId: string) => void
   addVessel: (name: string, thumbnail: string) => void
   renameVessel: (oldName: string, newName: string) => void
   deleteVessel: (name: string) => void
@@ -75,6 +79,26 @@ export function GalleryStoreProvider({ children }: { children: React.ReactNode }
     [revalidate],
   )
 
+  const resetDishRank = useCallback(
+    (dishId: string) => {
+      globalMutate(
+        SWR_KEY,
+        (prev: Vessel[] = []) =>
+          prev.map((v) => {
+            if (!v.dishes.some((d) => d.id === dishId)) return v
+            const dishes = v.dishes.map((d) =>
+              d.id === dishId ? { ...d, thumbsUp: 0, thumbsDown: 0 } : d,
+            )
+            const rank = dishes.reduce((s, d) => s + dishRank(d), 0)
+            return { ...v, dishes, rank }
+          }),
+        { revalidate: false },
+      )
+      resetDishRankAction(dishId).then(revalidate)
+    },
+    [revalidate],
+  )
+
   const addComment = useCallback(
     (dishId: string, body: string) => {
       const trimmed = body.trim()
@@ -98,6 +122,27 @@ export function GalleryStoreProvider({ children }: { children: React.ReactNode }
         { revalidate: false },
       )
       addCommentAction(dishId, trimmed).then(revalidate)
+    },
+    [revalidate],
+  )
+
+  const deleteComment = useCallback(
+    (dishId: string, commentId: string) => {
+      globalMutate(
+        SWR_KEY,
+        (prev: Vessel[] = []) =>
+          prev.map((v) => {
+            if (!v.dishes.some((d) => d.id === dishId)) return v
+            const dishes = v.dishes.map((d) =>
+              d.id === dishId
+                ? { ...d, comments: d.comments.filter((c) => c.id !== commentId) }
+                : d,
+            )
+            return { ...v, dishes }
+          }),
+        { revalidate: false },
+      )
+      deleteCommentAction(commentId).then(revalidate)
     },
     [revalidate],
   )
@@ -152,7 +197,9 @@ export function GalleryStoreProvider({ children }: { children: React.ReactNode }
       vessels,
       ready,
       voteDish,
+      resetDishRank,
       addComment,
+      deleteComment,
       addVessel,
       renameVessel,
       deleteVessel,
@@ -161,7 +208,7 @@ export function GalleryStoreProvider({ children }: { children: React.ReactNode }
       deleteDish,
       reset,
     }),
-    [vessels, ready, voteDish, addComment, addVessel, renameVessel, deleteVessel, updateVesselThumbnail, addDish, deleteDish, reset],
+    [vessels, ready, voteDish, resetDishRank, addComment, deleteComment, addVessel, renameVessel, deleteVessel, updateVesselThumbnail, addDish, deleteDish, reset],
   )
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
