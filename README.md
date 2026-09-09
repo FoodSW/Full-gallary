@@ -24,6 +24,23 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
+## One-command install (Ubuntu 22.04 server)
+
+The repo ships an automated installer (`install.sh`) that installs Node.js 20,
+pnpm, and PostgreSQL, provisions the database, builds the app, and runs it as a
+systemd service that starts on boot. On a fresh server run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/FoodSW/Full-gallary/main/install.sh | bash
+```
+
+Re-running the script updates the app to the latest code. It is configurable via
+environment variables (`APP_DIR`, `APP_PORT`, `DB_NAME`, `DB_USER`,
+`DB_PASSWORD`, `REPO_BRANCH`, …) — see the comments at the top of `install.sh`.
+The generated database password is saved to `<APP_DIR>/.db-credentials`.
+
+For a manual, step-by-step setup instead, follow the guide below.
+
 ## Self-hosting on Ubuntu 22.04
 
 This app is Next.js 16 / React 19 backed by PostgreSQL (via `pg` + Drizzle) and
