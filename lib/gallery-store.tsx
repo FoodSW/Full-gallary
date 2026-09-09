@@ -179,8 +179,8 @@ export function extremeDishes(vessels: Vessel[]) {
   )
   const sorted = [...all].sort((a, b) => dishRank(a) - dishRank(b))
   return {
-    // Only dishes clearly disliked (rank < -1) or clearly liked (rank > 1).
-    lowest: sorted.filter((d) => dishRank(d) < -1).slice(0, 3),
-    highest: [...sorted].reverse().filter((d) => dishRank(d) > 1).slice(0, 3),
+    // Only dishes with a negative rank (below 0) or a positive rank (above 0).
+    lowest: sorted.filter((d) => dishRank(d) < 0).slice(0, 3),
+    highest: [...sorted].reverse().filter((d) => dishRank(d) > 0).slice(0, 3),
   }
 }
