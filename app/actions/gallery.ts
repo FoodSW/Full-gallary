@@ -3,9 +3,35 @@
 import { revalidatePath } from 'next/cache'
 import { eq, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
-import { db } from '@/lib/db'
+import { db, ensureSchema } from '@/lib/db'
 import { dishes, vessels, adminCredentials, comments, adminUsers, siteStats } from '@/lib/db/schema'
 import type { Vessel, Dish, AdminRole, AdminUser } from '@/lib/gallery-data'
+import { VESSELS } from '@/lib/gallery-data'
+
+// ---------------------------------------------------------------------------
+// Resilience
+// ---------------------------------------------------------------------------
+
+/**
+ * True when an error means the database is unreachable/unusable rather than a
+ * genuine query bug — connection refused, host not found, auth failure, or the
+ * target database not existing yet. When this is the case, read paths degrade
+ * to sensible defaults instead of crashing the whole page with a 500. Real
+ * query errors still propagate so they aren't silently masked.
+ */
+function isDbUnavailable(err: unknown): boolean {
+  const code = (err as { code?: string })?.code
+  return (
+    code === 'ECONNREFUSED' || // no server listening
+    code === 'ENOTFOUND' ||    // host cannot be resolved
+    code === 'ETIMEDOUT' ||    // connection timed out
+    code === 'ECONNRESET' ||   // connection dropped
+    code === '57P03' ||        // cannot_connect_now (server starting up)
+    code === '3D000' ||        // invalid_catalog_name (database missing)
+    code === '28P01' ||        // invalid_password
+    code === '28000'           // invalid_authorization_specification
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Visitor counter
@@ -13,8 +39,14 @@ import type { Vessel, Dish, AdminRole, AdminUser } from '@/lib/gallery-data'
 
 /** Return the current total visit count without incrementing. */
 export async function getVisitCount(): Promise<number> {
-  const [row] = await db.select().from(siteStats).where(eq(siteStats.id, 'global'))
-  return row?.visits ?? 0
+  try {
+    await ensureSchema()
+    const [row] = await db.select().from(siteStats).where(eq(siteStats.id, 'global'))
+    return row?.visits ?? 0
+  } catch (err) {
+    if (isDbUnavailable(err)) return 0
+    throw err
+  }
 }
 
 /**
@@ -23,15 +55,21 @@ export async function getVisitCount(): Promise<number> {
  * concurrent visits can't lose counts.
  */
 export async function recordVisit(): Promise<number> {
-  const [row] = await db
-    .insert(siteStats)
-    .values({ id: 'global', visits: 1 })
-    .onConflictDoUpdate({
-      target: siteStats.id,
-      set: { visits: sql`${siteStats.visits} + 1` },
-    })
-    .returning({ visits: siteStats.visits })
-  return row?.visits ?? 0
+  try {
+    await ensureSchema()
+    const [row] = await db
+      .insert(siteStats)
+      .values({ id: 'global', visits: 1 })
+      .onConflictDoUpdate({
+        target: siteStats.id,
+        set: { visits: sql`${siteStats.visits} + 1` },
+      })
+      .returning({ visits: siteStats.visits })
+    return row?.visits ?? 0
+  } catch (err) {
+    if (isDbUnavailable(err)) return 0
+    throw err
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -81,17 +119,57 @@ function buildVessels(
 // Read
 // ---------------------------------------------------------------------------
 
-export async function getVessels(): Promise<Vessel[]> {
-  const [vesselRows, dishRows, commentRows] = await Promise.all([
-    db.select().from(vessels).orderBy(vessels.createdAt),
-    db.select().from(dishes).orderBy(dishes.createdAt),
-    db.select().from(comments).orderBy(comments.createdAt),
-  ])
+/**
+ * Seed the default fleet the first time the app runs against an empty database
+ * (e.g. a fresh local PostgreSQL install). Only vessel names are seeded — no
+ * placeholder dishes — so administrators start from a clean, functional gallery
+ * and upload real photos. Idempotent via onConflictDoNothing on the unique name.
+ */
+async function seedVesselsIfEmpty(): Promise<void> {
+  const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(vessels)
+  if (count > 0) return
+  await db
+    .insert(vessels)
+    .values(
+      VESSELS.map((v) => ({
+        id: `v-${nanoid(8)}`,
+        name: v.name,
+        thumbnail: '/vessel-container.png',
+      })),
+    )
+    .onConflictDoNothing()
+}
+
+/**
+ * Build the default fleet (vessel names only, no dishes) used as a fallback
+ * when the database is unreachable so the gallery still renders.
+ */
+function defaultFleet(): Vessel[] {
   return buildVessels(
-    vesselRows,
-    dishRows as Parameters<typeof buildVessels>[1],
-    commentRows as Parameters<typeof buildVessels>[2],
+    VESSELS.map((v, i) => ({ id: `seed-${i}`, name: v.name, thumbnail: '/vessel-container.png' })),
+    [],
+    [],
   )
+}
+
+export async function getVessels(): Promise<Vessel[]> {
+  try {
+    await ensureSchema()
+    await seedVesselsIfEmpty()
+    const [vesselRows, dishRows, commentRows] = await Promise.all([
+      db.select().from(vessels).orderBy(vessels.createdAt),
+      db.select().from(dishes).orderBy(dishes.createdAt),
+      db.select().from(comments).orderBy(comments.createdAt),
+    ])
+    return buildVessels(
+      vesselRows,
+      dishRows as Parameters<typeof buildVessels>[1],
+      commentRows as Parameters<typeof buildVessels>[2],
+    )
+  } catch (err) {
+    if (isDbUnavailable(err)) return defaultFleet()
+    throw err
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -223,26 +301,40 @@ export async function verifyAdminCredentials(
   password: string,
 ): Promise<{ ok: boolean; username?: string; role?: AdminRole; vessels?: string[] }> {
   const uname = username.trim()
+  // Default root admin, used when no custom credentials row exists or the
+  // database is unreachable — the root administrator is never locked out.
+  const DEFAULT_ROOT = { username: 'max', password: '1234567890' }
 
-  // Root admin (always an administrator, full access).
-  const [row] = await db.select().from(adminCredentials).where(eq(adminCredentials.id, 1))
-  const root = row ?? { username: 'max', password: '1234567890' }
-  if (uname === root.username && password === root.password) {
-    return { ok: true, username: root.username, role: 'administrator', vessels: [] }
-  }
+  try {
+    await ensureSchema()
 
-  // Additional accounts added by an administrator.
-  const [user] = await db.select().from(adminUsers).where(eq(adminUsers.username, uname))
-  if (user && user.password === password) {
-    return {
-      ok: true,
-      username: user.username,
-      role: user.role as AdminRole,
-      vessels: parseVessels(user.vessels),
+    // Root admin (always an administrator, full access).
+    const [row] = await db.select().from(adminCredentials).where(eq(adminCredentials.id, 1))
+    const root = row ?? DEFAULT_ROOT
+    if (uname === root.username && password === root.password) {
+      return { ok: true, username: root.username, role: 'administrator', vessels: [] }
     }
-  }
 
-  return { ok: false }
+    // Additional accounts added by an administrator.
+    const [user] = await db.select().from(adminUsers).where(eq(adminUsers.username, uname))
+    if (user && user.password === password) {
+      return {
+        ok: true,
+        username: user.username,
+        role: user.role as AdminRole,
+        vessels: parseVessels(user.vessels),
+      }
+    }
+
+    return { ok: false }
+  } catch (err) {
+    // With the database down, still allow the built-in root administrator in.
+    if (isDbUnavailable(err) && uname === DEFAULT_ROOT.username && password === DEFAULT_ROOT.password) {
+      return { ok: true, username: DEFAULT_ROOT.username, role: 'administrator', vessels: [] }
+    }
+    if (isDbUnavailable(err)) return { ok: false }
+    throw err
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -261,14 +353,20 @@ function parseVessels(raw: string | null | undefined): string[] {
 }
 
 export async function listAdminUsers(): Promise<AdminUser[]> {
-  const rows = await db.select().from(adminUsers).orderBy(adminUsers.createdAt)
-  return rows.map((r) => ({
-    id: r.id,
-    username: r.username,
-    role: r.role as AdminRole,
-    vessels: parseVessels(r.vessels),
-    createdAt: r.createdAt.toISOString(),
-  }))
+  try {
+    await ensureSchema()
+    const rows = await db.select().from(adminUsers).orderBy(adminUsers.createdAt)
+    return rows.map((r) => ({
+      id: r.id,
+      username: r.username,
+      role: r.role as AdminRole,
+      vessels: parseVessels(r.vessels),
+      createdAt: r.createdAt.toISOString(),
+    }))
+  } catch (err) {
+    if (isDbUnavailable(err)) return []
+    throw err
+  }
 }
 
 export async function addAdminUser(
