@@ -1,10 +1,10 @@
 "use client"
 
 import Image from "next/image"
-import { ChevronDown, ChevronRight, ThumbsUp } from "lucide-react"
+import { ChevronDown, ChevronRight, ThumbsUp, ThumbsDown, Trophy } from "lucide-react"
 import { useMemo, useState } from "react"
 import type { Dish, Vessel } from "@/lib/gallery-data"
-import { groupDishes, MONTH_NAMES } from "@/lib/gallery-data"
+import { groupDishes, dishRank, MONTH_NAMES } from "@/lib/gallery-data"
 import { PhotoCard } from "./photo-card"
 
 type VesselDetailProps = {
@@ -55,6 +55,48 @@ function AccordionRow({
   )
 }
 
+function BestWorstGrid({
+  dishes,
+  onOpen,
+}: {
+  dishes: Dish[]
+  onOpen: (index: number) => void
+}) {
+  return (
+    <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
+      {dishes.map((dish, i) => {
+        const rank = dishRank(dish)
+        return (
+          <button
+            key={dish.id}
+            type="button"
+            onClick={() => onOpen(i)}
+            className="group relative aspect-square overflow-hidden rounded-md border border-border/60"
+          >
+            <Image
+              src={dish.image || "/placeholder.svg"}
+              alt="Dish served on board"
+              fill
+              sizes="(max-width: 640px) 30vw, 160px"
+              className="object-cover transition-transform duration-300 group-hover:scale-105"
+            />
+            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-2 pb-1.5 pt-6 text-left">
+              <span className="flex items-center gap-1 text-xs font-semibold text-gold">
+                {rank >= 0 ? (
+                  <ThumbsUp size={12} fill="currentColor" />
+                ) : (
+                  <ThumbsDown size={12} fill="currentColor" />
+                )}
+                {rank > 0 ? `+${rank}` : rank}
+              </span>
+            </div>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 export function VesselDetail({ vessel, onHide, onOpenPhoto, onVote }: VesselDetailProps) {
   const years = useMemo(() => groupDishes(vessel.dishes), [vessel])
   const orderedDishes = useMemo(
@@ -65,6 +107,15 @@ export function VesselDetail({ vessel, onHide, onOpenPhoto, onVote }: VesselDeta
   const [openYears, setOpenYears] = useState<Set<number>>(new Set())
   const [openMonths, setOpenMonths] = useState<Set<string>>(new Set())
   const [openDays, setOpenDays] = useState<Set<string>>(new Set())
+  const [showBestWorst, setShowBestWorst] = useState(false)
+
+  const { best, worst } = useMemo(() => {
+    const sorted = [...vessel.dishes].sort((a, b) => dishRank(b) - dishRank(a))
+    return {
+      best: sorted.slice(0, 5),
+      worst: sorted.slice(-5).reverse(),
+    }
+  }, [vessel])
 
   const toggle = <T,>(set: Set<T>, value: T, setter: (s: Set<T>) => void) => {
     const next = new Set(set)
@@ -104,6 +155,42 @@ export function VesselDetail({ vessel, onHide, onOpenPhoto, onVote }: VesselDeta
           {vessel.rank}
         </span>
         <h2 className="mt-2 text-2xl font-bold">{vessel.name}</h2>
+      </div>
+
+      {/* Best and worst dishes */}
+      <div className="mt-4">
+        <button
+          type="button"
+          onClick={() => setShowBestWorst((v) => !v)}
+          className="inline-flex items-center gap-2 rounded-md bg-gold px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-gold-dark"
+        >
+          <Trophy size={16} />
+          Best and worst dishes
+          <ChevronDown
+            size={16}
+            className={`transition-transform ${showBestWorst ? "rotate-180" : ""}`}
+          />
+        </button>
+
+        {showBestWorst && (
+          <div className="mt-4 space-y-6 rounded-md border border-gold/40 bg-card/40 p-4">
+            <section>
+              <div className="mb-3 flex items-center gap-2 text-sm font-semibold tracking-wide text-gold">
+                <ThumbsUp size={16} className="text-gold" fill="currentColor" />
+                5 HIGHEST RANKED
+              </div>
+              <BestWorstGrid dishes={best} onOpen={(i) => onOpenPhoto(best, i)} />
+            </section>
+
+            <section>
+              <div className="mb-3 flex items-center gap-2 text-sm font-semibold tracking-wide text-muted-foreground">
+                <ThumbsDown size={16} className="text-gold/70" />
+                5 LOWEST RANKED
+              </div>
+              <BestWorstGrid dishes={worst} onOpen={(i) => onOpenPhoto(worst, i)} />
+            </section>
+          </div>
+        )}
       </div>
 
       {/* Timeline accordions */}
