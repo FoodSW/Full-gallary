@@ -32,7 +32,25 @@ export const adminCredentials = pgTable('admin_credentials', {
   password: text('password').notNull().default('1234567890'),
 })
 
+// Additional admin accounts beyond the root admin (kept in adminCredentials).
+// role is 'administrator' or 'manager' (group manager).
+export const adminUsers = pgTable('admin_users', {
+  id:        text('id').primaryKey(),
+  username:  text('username').notNull().unique(),
+  password:  text('password').notNull(),
+  role:      text('role').notNull().default('manager'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Single-row global counter for total site visits.
+export const siteStats = pgTable('site_stats', {
+  id:     text('id').primaryKey(),
+  visits: integer('visits').notNull().default(0),
+})
+
 export type VesselRow            = typeof vessels.$inferSelect
 export type DishRow              = typeof dishes.$inferSelect
 export type CommentRow           = typeof comments.$inferSelect
 export type AdminCredentialsRow  = typeof adminCredentials.$inferSelect
+export type AdminUserRow         = typeof adminUsers.$inferSelect
+export type SiteStatsRow         = typeof siteStats.$inferSelect

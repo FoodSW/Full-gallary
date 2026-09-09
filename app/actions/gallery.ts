@@ -4,8 +4,35 @@ import { revalidatePath } from 'next/cache'
 import { eq, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { db } from '@/lib/db'
-import { dishes, vessels, adminCredentials, comments } from '@/lib/db/schema'
-import type { Vessel, Dish } from '@/lib/gallery-data'
+import { dishes, vessels, adminCredentials, comments, adminUsers, siteStats } from '@/lib/db/schema'
+import type { Vessel, Dish, AdminRole, AdminUser } from '@/lib/gallery-data'
+
+// ---------------------------------------------------------------------------
+// Visitor counter
+// ---------------------------------------------------------------------------
+
+/** Return the current total visit count without incrementing. */
+export async function getVisitCount(): Promise<number> {
+  const [row] = await db.select().from(siteStats).where(eq(siteStats.id, 'global'))
+  return row?.visits ?? 0
+}
+
+/**
+ * Increment the global visit counter by one and return the new total. Uses an
+ * upsert so the row is created on first hit, and a single atomic UPDATE so
+ * concurrent visits can't lose counts.
+ */
+export async function recordVisit(): Promise<number> {
+  const [row] = await db
+    .insert(siteStats)
+    .values({ id: 'global', visits: 1 })
+    .onConflictDoUpdate({
+      target: siteStats.id,
+      set: { visits: sql`${siteStats.visits} + 1` },
+    })
+    .returning({ visits: siteStats.visits })
+  return row?.visits ?? 0
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -168,10 +195,76 @@ export async function addComment(
 export async function verifyAdminCredentials(
   username: string,
   password: string,
-): Promise<boolean> {
+): Promise<{ ok: boolean; username?: string; role?: AdminRole }> {
+  const uname = username.trim()
+
+  // Root admin (always an administrator).
   const [row] = await db.select().from(adminCredentials).where(eq(adminCredentials.id, 1))
-  if (!row) return username === 'max' && password === '1234567890'
-  return row.username === username && row.password === password
+  const root = row ?? { username: 'max', password: '1234567890' }
+  if (uname === root.username && password === root.password) {
+    return { ok: true, username: root.username, role: 'administrator' }
+  }
+
+  // Additional accounts added by an administrator.
+  const [user] = await db.select().from(adminUsers).where(eq(adminUsers.username, uname))
+  if (user && user.password === password) {
+    return { ok: true, username: user.username, role: user.role as AdminRole }
+  }
+
+  return { ok: false }
+}
+
+// ---------------------------------------------------------------------------
+// Admin team (additional administrators & group managers)
+// ---------------------------------------------------------------------------
+
+export async function listAdminUsers(): Promise<AdminUser[]> {
+  const rows = await db.select().from(adminUsers).orderBy(adminUsers.createdAt)
+  return rows.map((r) => ({
+    id: r.id,
+    username: r.username,
+    role: r.role as AdminRole,
+    createdAt: r.createdAt.toISOString(),
+  }))
+}
+
+export async function addAdminUser(
+  username: string,
+  password: string,
+  role: AdminRole,
+): Promise<{ ok: boolean; error?: string }> {
+  const uname = username.trim()
+  if (!uname) return { ok: false, error: 'Username is required.' }
+  if (password.length < 6) return { ok: false, error: 'Password must be at least 6 characters.' }
+  if (role !== 'administrator' && role !== 'manager') {
+    return { ok: false, error: 'Invalid role.' }
+  }
+
+  // Avoid clashing with the root admin username.
+  const [row] = await db.select().from(adminCredentials).where(eq(adminCredentials.id, 1))
+  const rootUsername = row?.username ?? 'max'
+  if (uname.toLowerCase() === rootUsername.toLowerCase()) {
+    return { ok: false, error: 'That username is already taken.' }
+  }
+
+  const existing = await db.select().from(adminUsers).where(eq(adminUsers.username, uname))
+  if (existing.length > 0) {
+    return { ok: false, error: 'That username is already taken.' }
+  }
+
+  await db.insert(adminUsers).values({
+    id: `au-${nanoid(8)}`,
+    username: uname,
+    password,
+    role,
+  })
+  revalidatePath('/admin')
+  return { ok: true }
+}
+
+export async function deleteAdminUser(id: string): Promise<void> {
+  await db.delete(adminUsers).where(eq(adminUsers.id, id))
+  revalidatePath('/admin')
 }
 
 export async function getAdminUsername(): Promise<string> {

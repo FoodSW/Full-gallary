@@ -1,5 +1,9 @@
+"use client"
+
+import { useEffect, useState } from "react"
 import { Eye } from "lucide-react"
 import type { Vessel } from "@/lib/gallery-data"
+import { getVisitCount, recordVisit } from "@/app/actions/gallery"
 
 type IntroCardProps = {
   vessels: Vessel[]
@@ -7,7 +11,54 @@ type IntroCardProps = {
   onSelect: (name: string) => void
 }
 
+const VISIT_FLAG = "swire-gallery-counted"
+
+/**
+ * Real visitor counter backed by the database. Each browser session is counted
+ * once (guarded via sessionStorage so refreshes don't inflate the total); on
+ * subsequent renders it just reads the current total.
+ */
+function useVisitCount() {
+  const [count, setCount] = useState<number | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function run() {
+      let alreadyCounted = false
+      try {
+        alreadyCounted = sessionStorage.getItem(VISIT_FLAG) === "1"
+      } catch {
+        // sessionStorage unavailable — treat as a fresh visit
+      }
+
+      try {
+        const total = alreadyCounted ? await getVisitCount() : await recordVisit()
+        if (!cancelled) setCount(total)
+        if (!alreadyCounted) {
+          try {
+            sessionStorage.setItem(VISIT_FLAG, "1")
+          } catch {
+            // ignore persistence errors
+          }
+        }
+      } catch {
+        // Leave the counter hidden if the request fails.
+      }
+    }
+
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  return count
+}
+
 export function IntroCard({ vessels, selected, onSelect }: IntroCardProps) {
+  const visits = useVisitCount()
+
   return (
     <div className="bg-intro text-intro-foreground px-5 py-6 sm:px-8">
       <div className="mx-auto max-w-2xl space-y-3 text-center">
@@ -28,7 +79,9 @@ export function IntroCard({ vessels, selected, onSelect }: IntroCardProps) {
 
         <div className="flex items-center justify-center gap-2 pt-1 text-sm font-medium">
           <Eye size={16} aria-hidden />
-          <span>18 viewers</span>
+          <span aria-live="polite">
+            {visits === null ? "\u2014" : `${visits.toLocaleString()} visits`}
+          </span>
         </div>
 
         <p className="pt-2 font-semibold">Select vessel name</p>

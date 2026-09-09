@@ -1,3 +1,12 @@
+export type AdminRole = "administrator" | "manager"
+
+export type AdminUser = {
+  id: string
+  username: string
+  role: AdminRole
+  createdAt: string // ISO date
+}
+
 export type Comment = {
   id: string
   body: string
