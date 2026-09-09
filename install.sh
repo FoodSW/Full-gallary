@@ -219,6 +219,10 @@ EnvironmentFile=-${APP_DIR}/.env.local
 Environment=NODE_ENV=production
 Environment=PORT=${APP_PORT}
 Environment=PATH=${NODE_DIR}:/usr/local/bin:/usr/bin:/bin
+# Free the port before starting so a lingering/orphaned listener can't cause a
+# permanent EADDRINUSE restart loop. Leading '-' ignores failure (e.g. nothing
+# to kill, or fuser missing).
+ExecStartPre=-/bin/sh -c 'fuser -k ${APP_PORT}/tcp || true'
 ExecStart=${NODE_BIN} ${NEXT_BIN} start -p ${APP_PORT}
 Restart=on-failure
 RestartSec=5
@@ -229,6 +233,12 @@ UNIT
 
 $SUDO systemctl daemon-reload
 $SUDO systemctl enable "${SERVICE_NAME}"
+
+# Stop any previous instance and free the port before (re)starting, so an
+# orphaned process from an earlier failed run can't hold port ${APP_PORT}.
+$SUDO systemctl stop "${SERVICE_NAME}" 2>/dev/null || true
+$SUDO fuser -k "${APP_PORT}/tcp" 2>/dev/null || true
+sleep 1
 $SUDO systemctl restart "${SERVICE_NAME}"
 
 # Give it a moment, then surface status/logs immediately if it failed to start.
