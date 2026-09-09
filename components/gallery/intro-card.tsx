@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { Eye } from "lucide-react"
 import type { Vessel } from "@/lib/gallery-data"
+import { getVisitCount, recordVisit } from "@/app/actions/gallery"
 
 type IntroCardProps = {
   vessels: Vessel[]
@@ -10,36 +11,53 @@ type IntroCardProps = {
   onSelect: (name: string) => void
 }
 
+const VISIT_FLAG = "swire-gallery-counted"
+
 /**
- * Live-ish viewer counter. There is no realtime backend, so we simulate
- * presence: a realistic base plus this viewer, drifting slightly over time so
- * the number is never frozen. Rendered client-side only to avoid hydration
- * mismatch from the random base.
+ * Real visitor counter backed by the database. Each browser session is counted
+ * once (guarded via sessionStorage so refreshes don't inflate the total); on
+ * subsequent renders it just reads the current total.
  */
-function useViewerCount() {
+function useVisitCount() {
   const [count, setCount] = useState<number | null>(null)
 
   useEffect(() => {
-    // Base pool of concurrent viewers, plus 1 for the current visitor.
-    const base = 12 + Math.floor(Math.random() * 20)
-    setCount(base + 1)
+    let cancelled = false
 
-    const interval = setInterval(() => {
-      setCount((prev) => {
-        if (prev === null) return prev
-        const drift = Math.floor(Math.random() * 3) - 1 // -1, 0, or +1
-        return Math.max(1, prev + drift)
-      })
-    }, 4000)
+    async function run() {
+      let alreadyCounted = false
+      try {
+        alreadyCounted = sessionStorage.getItem(VISIT_FLAG) === "1"
+      } catch {
+        // sessionStorage unavailable — treat as a fresh visit
+      }
 
-    return () => clearInterval(interval)
+      try {
+        const total = alreadyCounted ? await getVisitCount() : await recordVisit()
+        if (!cancelled) setCount(total)
+        if (!alreadyCounted) {
+          try {
+            sessionStorage.setItem(VISIT_FLAG, "1")
+          } catch {
+            // ignore persistence errors
+          }
+        }
+      } catch {
+        // Leave the counter hidden if the request fails.
+      }
+    }
+
+    run()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   return count
 }
 
 export function IntroCard({ vessels, selected, onSelect }: IntroCardProps) {
-  const viewers = useViewerCount()
+  const visits = useVisitCount()
 
   return (
     <div className="bg-intro text-intro-foreground px-5 py-6 sm:px-8">
@@ -62,7 +80,7 @@ export function IntroCard({ vessels, selected, onSelect }: IntroCardProps) {
         <div className="flex items-center justify-center gap-2 pt-1 text-sm font-medium">
           <Eye size={16} aria-hidden />
           <span aria-live="polite">
-            {viewers === null ? "\u2014" : `${viewers} viewers`}
+            {visits === null ? "\u2014" : `${visits.toLocaleString()} visits`}
           </span>
         </div>
 

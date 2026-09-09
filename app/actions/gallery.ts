@@ -4,8 +4,35 @@ import { revalidatePath } from 'next/cache'
 import { eq, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { db } from '@/lib/db'
-import { dishes, vessels, adminCredentials, comments, adminUsers } from '@/lib/db/schema'
+import { dishes, vessels, adminCredentials, comments, adminUsers, siteStats } from '@/lib/db/schema'
 import type { Vessel, Dish, AdminRole, AdminUser } from '@/lib/gallery-data'
+
+// ---------------------------------------------------------------------------
+// Visitor counter
+// ---------------------------------------------------------------------------
+
+/** Return the current total visit count without incrementing. */
+export async function getVisitCount(): Promise<number> {
+  const [row] = await db.select().from(siteStats).where(eq(siteStats.id, 'global'))
+  return row?.visits ?? 0
+}
+
+/**
+ * Increment the global visit counter by one and return the new total. Uses an
+ * upsert so the row is created on first hit, and a single atomic UPDATE so
+ * concurrent visits can't lose counts.
+ */
+export async function recordVisit(): Promise<number> {
+  const [row] = await db
+    .insert(siteStats)
+    .values({ id: 'global', visits: 1 })
+    .onConflictDoUpdate({
+      target: siteStats.id,
+      set: { visits: sql`${siteStats.visits} + 1` },
+    })
+    .returning({ visits: siteStats.visits })
+  return row?.visits ?? 0
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
