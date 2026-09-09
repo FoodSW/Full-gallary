@@ -112,8 +112,8 @@ export function VesselDetail({ vessel, onHide, onOpenPhoto, onVote }: VesselDeta
   const { best, worst } = useMemo(() => {
     const sorted = [...vessel.dishes].sort((a, b) => dishRank(b) - dishRank(a))
     return {
-      best: sorted.filter((d) => dishRank(d) > 1).slice(0, 5),
-      worst: sorted.filter((d) => dishRank(d) < -1).reverse().slice(0, 5),
+      best: sorted.filter((d) => dishRank(d) > 0).slice(0, 5),
+      worst: sorted.filter((d) => dishRank(d) < 0).reverse().slice(0, 5),
     }
   }, [vessel])
 
@@ -182,7 +182,7 @@ export function VesselDetail({ vessel, onHide, onOpenPhoto, onVote }: VesselDeta
               {best.length > 0 ? (
                 <BestWorstGrid dishes={best} onOpen={(i) => onOpenPhoto(best, i)} />
               ) : (
-                <p className="text-sm text-muted-foreground">No dishes ranked above 1 yet.</p>
+                <p className="text-sm text-muted-foreground">No dishes ranked above 0 yet.</p>
               )}
             </section>
 
@@ -194,7 +194,7 @@ export function VesselDetail({ vessel, onHide, onOpenPhoto, onVote }: VesselDeta
               {worst.length > 0 ? (
                 <BestWorstGrid dishes={worst} onOpen={(i) => onOpenPhoto(worst, i)} />
               ) : (
-                <p className="text-sm text-muted-foreground">No dishes ranked below -1 yet.</p>
+                <p className="text-sm text-muted-foreground">No dishes ranked below 0 yet.</p>
               )}
             </section>
           </div>
