@@ -24,8 +24,8 @@ export function ThumbsRating({
   variant = "dark",
   onVote,
 }: ThumbsRatingProps) {
-  // Remember this browser's choice so the buttons reflect the active vote and a
-  // second click can toggle it off or switch sides.
+  // Remember this browser's choice. Each device may rank a dish only once, so
+  // once a vote exists the buttons lock and reflect the chosen side.
   const [vote, setVote] = useState<Vote>(null)
 
   useEffect(() => {
@@ -39,57 +39,36 @@ export function ThumbsRating({
 
   const cast = (dir: "up" | "down", e: React.MouseEvent) => {
     e.stopPropagation()
-    if (!onVote) return
+    if (!onVote || vote !== null) return // already ranked from this device
 
-    let deltaUp = 0
-    let deltaDown = 0
-    let next: Vote
-
-    if (vote === dir) {
-      next = null
-      if (dir === "up") deltaUp = -1
-      else deltaDown = -1
-    } else if (vote === null) {
-      next = dir
-      if (dir === "up") deltaUp = 1
-      else deltaDown = 1
-    } else {
-      next = dir
-      if (dir === "up") {
-        deltaUp = 1
-        deltaDown = -1
-      } else {
-        deltaUp = -1
-        deltaDown = 1
-      }
-    }
-
-    setVote(next)
+    setVote(dir)
     try {
-      if (next) localStorage.setItem(storageKey(dishId), next)
-      else localStorage.removeItem(storageKey(dishId))
+      localStorage.setItem(storageKey(dishId), dir)
     } catch {
       // ignore persistence errors
     }
-    onVote(deltaUp, deltaDown)
+    onVote(dir === "up" ? 1 : 0, dir === "down" ? 1 : 0)
   }
 
   const rank = thumbsUp - thumbsDown
   const mutedClass = variant === "light" ? "text-white/70" : "text-muted-foreground"
   const labelClass = variant === "light" ? "text-white" : "text-foreground"
-  const disabled = !onVote
+  const hasVoted = vote !== null
+  // Buttons are locked when there is no handler, or once this device has voted.
+  const locked = !onVote || hasVoted
 
   return (
     <div className="flex w-full items-center gap-1.5">
       <button
         type="button"
-        disabled={disabled}
+        disabled={locked}
         aria-label="Thumbs up"
         aria-pressed={vote === "up"}
+        title={hasVoted ? "You already ranked this from this device" : undefined}
         onClick={(e) => cast("up", e)}
         className={[
           "flex items-center gap-1 rounded-md px-1.5 py-1 transition-colors",
-          disabled ? "cursor-default" : "cursor-pointer hover:text-gold",
+          locked ? "cursor-default" : "cursor-pointer hover:text-gold",
           vote === "up" ? "text-gold" : mutedClass,
         ].join(" ")}
       >
@@ -99,13 +78,14 @@ export function ThumbsRating({
 
       <button
         type="button"
-        disabled={disabled}
+        disabled={locked}
         aria-label="Thumbs down"
         aria-pressed={vote === "down"}
+        title={hasVoted ? "You already ranked this from this device" : undefined}
         onClick={(e) => cast("down", e)}
         className={[
           "flex items-center gap-1 rounded-md px-1.5 py-1 transition-colors",
-          disabled ? "cursor-default" : "cursor-pointer hover:text-danger",
+          locked ? "cursor-default" : "cursor-pointer hover:text-danger",
           vote === "down" ? "text-danger" : mutedClass,
         ].join(" ")}
       >

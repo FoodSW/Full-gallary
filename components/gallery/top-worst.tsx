@@ -62,7 +62,11 @@ export function TopWorst({ lowest, highest, onOpen }: TopWorstProps) {
             <ThumbsDown size={16} className="text-gold/70" />
             LOWEST RANKED
           </div>
-          <RankGrid dishes={lowest} onOpen={(i) => onOpen(lowest, i)} />
+          {lowest.length > 0 ? (
+            <RankGrid dishes={lowest} onOpen={(i) => onOpen(lowest, i)} />
+          ) : (
+            <p className="text-sm text-muted-foreground">No dishes ranked below -1 yet.</p>
+          )}
         </section>
 
         <section>
@@ -70,7 +74,11 @@ export function TopWorst({ lowest, highest, onOpen }: TopWorstProps) {
             <ThumbsUp size={16} className="text-gold" fill="currentColor" />
             HIGHEST RANKED
           </div>
-          <RankGrid dishes={highest} onOpen={(i) => onOpen(highest, i)} />
+          {highest.length > 0 ? (
+            <RankGrid dishes={highest} onOpen={(i) => onOpen(highest, i)} />
+          ) : (
+            <p className="text-sm text-muted-foreground">No dishes ranked above 1 yet.</p>
+          )}
         </section>
       </div>
     </div>
