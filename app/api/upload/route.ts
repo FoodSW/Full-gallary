@@ -1,43 +1,63 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { writeFile, mkdir } from 'fs/promises'
-import path from 'path'
+import { db, pool } from '@/lib/db'
+import { photos } from '@/lib/db/schema'
 
 export const runtime = 'nodejs'
+
+const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
+
+// The photos table is created lazily so uploads work even before a migration
+// has been run. CREATE TABLE IF NOT EXISTS is idempotent and cheap.
+let tableReady: Promise<void> | null = null
+function ensurePhotosTable(): Promise<void> {
+  if (!tableReady) {
+    tableReady = pool
+      .query(
+        `CREATE TABLE IF NOT EXISTS photos (
+          id text PRIMARY KEY,
+          data text NOT NULL,
+          mime text NOT NULL,
+          created_at timestamptz NOT NULL DEFAULT now()
+        )`,
+      )
+      .then(() => undefined)
+      .catch((err) => {
+        // Reset so a later request can retry table creation.
+        tableReady = null
+        throw err
+      })
+  }
+  return tableReady
+}
 
 export async function POST(req: NextRequest) {
   try {
     const form = await req.formData()
-    const file = form.get('file') as File | null
-    const vesselName = (form.get('vesselName') as string | null)?.trim()
+    const file = form.get('file')
 
-    if (!file || !vesselName) {
-      return NextResponse.json({ error: 'Missing file or vesselName' }, { status: 400 })
+    if (!(file instanceof File)) {
+      return NextResponse.json({ error: 'No file provided.' }, { status: 400 })
     }
 
-    // Sanitise the vessel name so it is safe as a folder name.
-    const safeFolder = vesselName.replace(/[^a-zA-Z0-9_\- ]/g, '').replace(/\s+/g, '-')
-
-    const ext = path.extname(file.name).toLowerCase() || '.jpg'
-    const allowedExts = ['.jpg', '.jpeg', '.png', '.webp', '.gif']
-    if (!allowedExts.includes(ext)) {
+    const mime = file.type || 'application/octet-stream'
+    if (!ALLOWED.has(mime)) {
       return NextResponse.json({ error: 'Invalid file type' }, { status: 400 })
     }
 
-    // Build the target directory under the local web root:
-    // public/gallery/upload/<vessel-name>/  (served at /gallery/upload/...)
-    const dir = path.join(process.cwd(), 'public', 'gallery', 'upload', safeFolder)
-    await mkdir(dir, { recursive: true })
-
-    // Use a timestamp-based filename to avoid collisions.
-    const filename = `${Date.now()}${ext}`
-    const filePath = path.join(dir, filename)
+    await ensurePhotosTable()
 
     const buffer = Buffer.from(await file.arrayBuffer())
-    await writeFile(filePath, buffer)
+    const id = `ph-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 
-    // Return the public URL path so Next.js <Image> can serve it.
-    const publicPath = `/gallery/upload/${safeFolder}/${filename}`
-    return NextResponse.json({ path: publicPath })
+    await db.insert(photos).values({
+      id,
+      data: buffer.toString('base64'),
+      mime,
+    })
+
+    // Served by the /api/photo/[id] route; persists via the database so it
+    // survives on the published serverless deployment.
+    return NextResponse.json({ path: `/api/photo/${id}` })
   } catch (err) {
     console.error('[upload]', err)
     return NextResponse.json({ error: 'Upload failed' }, { status: 500 })

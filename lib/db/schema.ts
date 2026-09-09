@@ -51,9 +51,20 @@ export const siteStats = pgTable('site_stats', {
   visits: integer('visits').notNull().default(0),
 })
 
+// Uploaded gallery photos, stored in the database so they persist on the
+// published (serverless) deployment where the filesystem is ephemeral.
+// `data` holds the base64-encoded image bytes; served via /api/photo/<id>.
+export const photos = pgTable('photos', {
+  id:        text('id').primaryKey(),
+  data:      text('data').notNull(),
+  mime:      text('mime').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 export type VesselRow            = typeof vessels.$inferSelect
 export type DishRow              = typeof dishes.$inferSelect
 export type CommentRow           = typeof comments.$inferSelect
 export type AdminCredentialsRow  = typeof adminCredentials.$inferSelect
 export type AdminUserRow         = typeof adminUsers.$inferSelect
 export type SiteStatsRow         = typeof siteStats.$inferSelect
+export type PhotoRow             = typeof photos.$inferSelect
