@@ -6,6 +6,7 @@ import { nanoid } from 'nanoid'
 import { db } from '@/lib/db'
 import { dishes, vessels, adminCredentials, comments, adminUsers, siteStats } from '@/lib/db/schema'
 import type { Vessel, Dish, AdminRole, AdminUser } from '@/lib/gallery-data'
+import { VESSELS } from '@/lib/gallery-data'
 
 // ---------------------------------------------------------------------------
 // Visitor counter
@@ -81,7 +82,29 @@ function buildVessels(
 // Read
 // ---------------------------------------------------------------------------
 
+/**
+ * Seed the default fleet the first time the app runs against an empty database
+ * (e.g. a fresh local PostgreSQL install). Only vessel names are seeded — no
+ * placeholder dishes — so administrators start from a clean, functional gallery
+ * and upload real photos. Idempotent via onConflictDoNothing on the unique name.
+ */
+async function seedVesselsIfEmpty(): Promise<void> {
+  const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(vessels)
+  if (count > 0) return
+  await db
+    .insert(vessels)
+    .values(
+      VESSELS.map((v) => ({
+        id: `v-${nanoid(8)}`,
+        name: v.name,
+        thumbnail: '/vessel-container.png',
+      })),
+    )
+    .onConflictDoNothing()
+}
+
 export async function getVessels(): Promise<Vessel[]> {
+  await seedVesselsIfEmpty()
   const [vesselRows, dishRows, commentRows] = await Promise.all([
     db.select().from(vessels).orderBy(vessels.createdAt),
     db.select().from(dishes).orderBy(dishes.createdAt),
