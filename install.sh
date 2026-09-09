@@ -49,6 +49,17 @@ die()  { printf '\033[1;31m[error]\033[0m %s\n' "$*" >&2; exit 1; }
 if [ "$(id -u)" -eq 0 ]; then SUDO=""; else SUDO="sudo"; fi
 command -v sudo >/dev/null 2>&1 || [ "$(id -u)" -eq 0 ] || die "sudo is required but not installed."
 
+# run_as USER cmd… — run a command as another user. Uses `runuser` when we are
+# already root (so no bogus empty-token before `-u`) and `sudo -u` otherwise.
+run_as() {
+  local u="$1"; shift
+  if [ "$(id -u)" -eq 0 ]; then
+    runuser -u "$u" -- "$@"
+  else
+    sudo -u "$u" "$@"
+  fi
+}
+
 # ---------------------------------------------------------------------------
 # 1. System packages
 # ---------------------------------------------------------------------------
@@ -106,7 +117,7 @@ fi
 
 log "Provisioning PostgreSQL role '${DB_USER}' and database '${DB_NAME}'…"
 # Create/idempotently update the role.
-$SUDO -u postgres psql -v ON_ERROR_STOP=1 <<SQL
+run_as postgres psql -v ON_ERROR_STOP=1 <<SQL
 DO \$\$
 BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${DB_USER}') THEN
@@ -118,8 +129,8 @@ END
 \$\$;
 SQL
 # Create the database if missing (CREATE DATABASE can't run inside a DO block).
-if ! $SUDO -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'" | grep -q 1; then
-  $SUDO -u postgres createdb -O "${DB_USER}" "${DB_NAME}"
+if ! run_as postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'" | grep -q 1; then
+  run_as postgres createdb -O "${DB_USER}" "${DB_NAME}"
 fi
 
 DATABASE_URL="postgresql://${DB_USER}:${DB_PASSWORD}@localhost:5432/${DB_NAME}"
@@ -171,10 +182,10 @@ fi
 # 9. Install dependencies and build (run as the service user)
 # ---------------------------------------------------------------------------
 log "Installing dependencies (pnpm install)…"
-$SUDO -u "${SERVICE_USER}" bash -lc "cd '${APP_DIR}' && pnpm install --frozen-lockfile || pnpm install"
+run_as "${SERVICE_USER}" bash -lc "cd '${APP_DIR}' && pnpm install --frozen-lockfile || pnpm install"
 
 log "Building the app (pnpm build)…"
-$SUDO -u "${SERVICE_USER}" bash -lc "cd '${APP_DIR}' && pnpm build"
+run_as "${SERVICE_USER}" bash -lc "cd '${APP_DIR}' && pnpm build"
 
 # ---------------------------------------------------------------------------
 # 10. systemd service (auto-start on boot, restart on failure)
