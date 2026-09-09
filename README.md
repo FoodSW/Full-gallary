@@ -41,6 +41,25 @@ The generated database password is saved to `<APP_DIR>/.db-credentials`.
 
 For a manual, step-by-step setup instead, follow the guide below.
 
+### Uninstall
+
+The repo also ships `uninstall.sh`, which reverses the installer: it stops and
+removes the systemd service, frees the port, and deletes the app directory.
+
+```bash
+# Remove the service and app files, but KEEP the database:
+curl -fsSL https://raw.githubusercontent.com/FoodSW/Full-gallary/main/uninstall.sh | bash
+
+# Also DROP the database and role (destroys all gallery data):
+curl -fsSL https://raw.githubusercontent.com/FoodSW/Full-gallary/main/uninstall.sh | bash -s -- --purge
+```
+
+Add `--yes` to skip the confirmation prompt. It reads the same `APP_DIR`,
+`APP_PORT`, `DB_NAME`, and `DB_USER` environment variables as the installer, so
+pass any custom values you used at install time. Node.js, pnpm, and the
+PostgreSQL server packages are intentionally left in place, since other apps may
+depend on them.
+
 ## Self-hosting on Ubuntu 22.04
 
 This app is Next.js 16 / React 19 backed by PostgreSQL (via `pg` + Drizzle) and
