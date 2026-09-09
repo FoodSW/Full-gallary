@@ -113,7 +113,7 @@ export function VesselDetail({ vessel, onHide, onOpenPhoto, onVote }: VesselDeta
     const sorted = [...vessel.dishes].sort((a, b) => dishRank(b) - dishRank(a))
     return {
       best: sorted.filter((d) => dishRank(d) > 1).slice(0, 5),
-      worst: sorted.slice(-5).reverse(),
+      worst: sorted.filter((d) => dishRank(d) < -1).reverse().slice(0, 5),
     }
   }, [vessel])
 
@@ -191,7 +191,11 @@ export function VesselDetail({ vessel, onHide, onOpenPhoto, onVote }: VesselDeta
                 <ThumbsDown size={16} className="text-gold/70" />
                 5 LOWEST RANKED
               </div>
-              <BestWorstGrid dishes={worst} onOpen={(i) => onOpenPhoto(worst, i)} />
+              {worst.length > 0 ? (
+                <BestWorstGrid dishes={worst} onOpen={(i) => onOpenPhoto(worst, i)} />
+              ) : (
+                <p className="text-sm text-muted-foreground">No dishes ranked below -1 yet.</p>
+              )}
             </section>
           </div>
         )}
