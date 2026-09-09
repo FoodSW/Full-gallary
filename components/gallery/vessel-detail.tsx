@@ -112,7 +112,7 @@ export function VesselDetail({ vessel, onHide, onOpenPhoto, onVote }: VesselDeta
   const { best, worst } = useMemo(() => {
     const sorted = [...vessel.dishes].sort((a, b) => dishRank(b) - dishRank(a))
     return {
-      best: sorted.slice(0, 5),
+      best: sorted.filter((d) => dishRank(d) > 1).slice(0, 5),
       worst: sorted.slice(-5).reverse(),
     }
   }, [vessel])
@@ -179,7 +179,11 @@ export function VesselDetail({ vessel, onHide, onOpenPhoto, onVote }: VesselDeta
                 <ThumbsUp size={16} className="text-gold" fill="currentColor" />
                 5 HIGHEST RANKED
               </div>
-              <BestWorstGrid dishes={best} onOpen={(i) => onOpenPhoto(best, i)} />
+              {best.length > 0 ? (
+                <BestWorstGrid dishes={best} onOpen={(i) => onOpenPhoto(best, i)} />
+              ) : (
+                <p className="text-sm text-muted-foreground">No dishes ranked above 1 yet.</p>
+              )}
             </section>
 
             <section>
