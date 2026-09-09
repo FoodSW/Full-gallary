@@ -114,6 +114,8 @@ export async function renameVessel(oldName: string, newName: string): Promise<vo
   const trimmed = newName.trim()
   if (!trimmed || trimmed === oldName) return
   await db.update(vessels).set({ name: trimmed }).where(eq(vessels.name, oldName))
+  // Keep group-manager permissions pointing at the renamed vessel.
+  await remapManagerVessels((names) => names.map((n) => (n === oldName ? trimmed : n)))
   revalidatePath('/')
   revalidatePath('/admin')
 }
@@ -133,8 +135,25 @@ export async function deleteVessel(name: string): Promise<void> {
   }
   await db.delete(dishes).where(eq(dishes.vesselId, vessel.id))
   await db.delete(vessels).where(eq(vessels.id, vessel.id))
+  // Drop the deleted vessel from any group-manager permission lists.
+  await remapManagerVessels((names) => names.filter((n) => n !== name))
   revalidatePath('/')
   revalidatePath('/admin')
+}
+
+/**
+ * Apply a transform to every group manager's permitted-vessel list. Used to
+ * keep permissions consistent when vessels are renamed or removed.
+ */
+async function remapManagerVessels(transform: (names: string[]) => string[]): Promise<void> {
+  const managers = await db.select().from(adminUsers).where(eq(adminUsers.role, 'manager'))
+  for (const m of managers) {
+    const current = parseVessels(m.vessels)
+    const next = transform(current)
+    if (JSON.stringify(next) !== JSON.stringify(current)) {
+      await db.update(adminUsers).set({ vessels: JSON.stringify(next) }).where(eq(adminUsers.id, m.id))
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -195,20 +214,25 @@ export async function addComment(
 export async function verifyAdminCredentials(
   username: string,
   password: string,
-): Promise<{ ok: boolean; username?: string; role?: AdminRole }> {
+): Promise<{ ok: boolean; username?: string; role?: AdminRole; vessels?: string[] }> {
   const uname = username.trim()
 
-  // Root admin (always an administrator).
+  // Root admin (always an administrator, full access).
   const [row] = await db.select().from(adminCredentials).where(eq(adminCredentials.id, 1))
   const root = row ?? { username: 'max', password: '1234567890' }
   if (uname === root.username && password === root.password) {
-    return { ok: true, username: root.username, role: 'administrator' }
+    return { ok: true, username: root.username, role: 'administrator', vessels: [] }
   }
 
   // Additional accounts added by an administrator.
   const [user] = await db.select().from(adminUsers).where(eq(adminUsers.username, uname))
   if (user && user.password === password) {
-    return { ok: true, username: user.username, role: user.role as AdminRole }
+    return {
+      ok: true,
+      username: user.username,
+      role: user.role as AdminRole,
+      vessels: parseVessels(user.vessels),
+    }
   }
 
   return { ok: false }
@@ -218,12 +242,24 @@ export async function verifyAdminCredentials(
 // Admin team (additional administrators & group managers)
 // ---------------------------------------------------------------------------
 
+/** Safely parse the stored JSON vessel-permission list. */
+function parseVessels(raw: string | null | undefined): string[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : []
+  } catch {
+    return []
+  }
+}
+
 export async function listAdminUsers(): Promise<AdminUser[]> {
   const rows = await db.select().from(adminUsers).orderBy(adminUsers.createdAt)
   return rows.map((r) => ({
     id: r.id,
     username: r.username,
     role: r.role as AdminRole,
+    vessels: parseVessels(r.vessels),
     createdAt: r.createdAt.toISOString(),
   }))
 }
@@ -232,12 +268,19 @@ export async function addAdminUser(
   username: string,
   password: string,
   role: AdminRole,
+  vessels: string[] = [],
 ): Promise<{ ok: boolean; error?: string }> {
   const uname = username.trim()
   if (!uname) return { ok: false, error: 'Username is required.' }
   if (password.length < 6) return { ok: false, error: 'Password must be at least 6 characters.' }
   if (role !== 'administrator' && role !== 'manager') {
     return { ok: false, error: 'Invalid role.' }
+  }
+
+  // A group manager with no permitted vessels could not moderate anything.
+  const permitted = role === 'manager' ? vessels.filter((v) => typeof v === 'string') : []
+  if (role === 'manager' && permitted.length === 0) {
+    return { ok: false, error: 'Select at least one vessel for a group manager.' }
   }
 
   // Avoid clashing with the root admin username.
@@ -257,9 +300,17 @@ export async function addAdminUser(
     username: uname,
     password,
     role,
+    vessels: JSON.stringify(permitted),
   })
   revalidatePath('/admin')
   return { ok: true }
+}
+
+/** Replace a group manager's permitted-vessel list. */
+export async function updateAdminUserVessels(id: string, vessels: string[]): Promise<void> {
+  const permitted = vessels.filter((v) => typeof v === 'string')
+  await db.update(adminUsers).set({ vessels: JSON.stringify(permitted) }).where(eq(adminUsers.id, id))
+  revalidatePath('/admin')
 }
 
 export async function deleteAdminUser(id: string): Promise<void> {

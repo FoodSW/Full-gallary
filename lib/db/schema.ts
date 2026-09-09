@@ -39,6 +39,9 @@ export const adminUsers = pgTable('admin_users', {
   username:  text('username').notNull().unique(),
   password:  text('password').notNull(),
   role:      text('role').notNull().default('manager'),
+  // JSON array of vessel names a group manager may moderate. Ignored for
+  // administrators (who can moderate everything).
+  vessels:   text('vessels').notNull().default('[]'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 

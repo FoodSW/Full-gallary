@@ -7,7 +7,13 @@ import type { Vessel } from "@/lib/gallery-data"
 import { useGalleryStore } from "@/lib/gallery-store"
 import { DishManager } from "@/components/admin/dish-manager"
 
-export function VesselManager({ vessels }: { vessels: Vessel[] }) {
+export function VesselManager({
+  vessels,
+  canManageVessels = true,
+}: {
+  vessels: Vessel[]
+  canManageVessels?: boolean
+}) {
   const { addVessel, renameVessel, deleteVessel, updateVesselThumbnail } = useGalleryStore()
   const [newName, setNewName] = useState("")
   const [expanded, setExpanded] = useState<string | null>(null)
@@ -64,22 +70,30 @@ export function VesselManager({ vessels }: { vessels: Vessel[] }) {
         <h2 className="text-lg font-semibold text-foreground">Vessels &amp; Galley Photos</h2>
       </div>
 
-      <form onSubmit={addNew} className="flex flex-col gap-2 sm:flex-row">
-        <input
-          type="text"
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          placeholder="New vessel name (e.g. mv Fuchow)"
-          className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-gold focus:ring-2 focus:ring-gold/40"
-        />
-        <button
-          type="submit"
-          className="flex items-center justify-center gap-1.5 rounded-md bg-gold px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-gold-dark"
-        >
-          <Plus size={16} aria-hidden />
-          Add vessel
-        </button>
-      </form>
+      {canManageVessels && (
+        <form onSubmit={addNew} className="flex flex-col gap-2 sm:flex-row">
+          <input
+            type="text"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="New vessel name (e.g. mv Fuchow)"
+            className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-gold focus:ring-2 focus:ring-gold/40"
+          />
+          <button
+            type="submit"
+            className="flex items-center justify-center gap-1.5 rounded-md bg-gold px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-gold-dark"
+          >
+            <Plus size={16} aria-hidden />
+            Add vessel
+          </button>
+        </form>
+      )}
+
+      {vessels.length === 0 && (
+        <p className="rounded-md border border-border bg-card px-4 py-6 text-center text-sm text-muted-foreground">
+          No vessels assigned to you yet.
+        </p>
+      )}
 
       <ul className="space-y-2">
         {vessels.map((vessel) => {
@@ -168,22 +182,26 @@ export function VesselManager({ vessels }: { vessels: Vessel[] }) {
                         {vessel.dishes.length} photos · rank {vessel.rank}
                       </span>
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => startEdit(vessel.name)}
-                      aria-label={`Rename ${vessel.name}`}
-                      className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-                    >
-                      <Pencil size={15} aria-hidden />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setConfirmDelete(vessel.name)}
-                      aria-label={`Delete ${vessel.name}`}
-                      className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-danger/15 hover:text-danger"
-                    >
-                      <Trash2 size={15} aria-hidden />
-                    </button>
+                    {canManageVessels && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => startEdit(vessel.name)}
+                          aria-label={`Rename ${vessel.name}`}
+                          className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                        >
+                          <Pencil size={15} aria-hidden />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDelete(vessel.name)}
+                          aria-label={`Delete ${vessel.name}`}
+                          className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-danger/15 hover:text-danger"
+                        >
+                          <Trash2 size={15} aria-hidden />
+                        </button>
+                      </>
+                    )}
                   </>
                 )}
               </div>

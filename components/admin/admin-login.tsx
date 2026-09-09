@@ -6,7 +6,7 @@ import { verifyAdminCredentials } from "@/app/actions/gallery"
 import type { AdminRole } from "@/lib/gallery-data"
 
 type AdminLoginProps = {
-  onSuccess: (username: string, role: AdminRole) => void
+  onSuccess: (username: string, role: AdminRole, vessels: string[]) => void
 }
 
 export function AdminLogin({ onSuccess }: AdminLoginProps) {
@@ -22,7 +22,7 @@ export function AdminLogin({ onSuccess }: AdminLoginProps) {
     const result = await verifyAdminCredentials(username.trim(), password)
     setLoading(false)
     if (result.ok && result.username && result.role) {
-      onSuccess(result.username, result.role)
+      onSuccess(result.username, result.role, result.vessels ?? [])
     } else {
       setError(true)
     }
