@@ -11,7 +11,7 @@ import type { Dish } from "@/lib/gallery-data"
 import { extremeDishes, useGalleryStore } from "@/lib/gallery-store"
 
 export default function GalleryPage() {
-  const { vessels, voteDish } = useGalleryStore()
+  const { vessels, voteDish, addComment } = useGalleryStore()
   const [selected, setSelected] = useState<string | null>(null)
   const [lightbox, setLightbox] = useState<{ dishes: Dish[]; index: number } | null>(null)
 
@@ -78,6 +78,7 @@ export default function GalleryPage() {
           onClose={() => setLightbox(null)}
           onNavigate={(index) => setLightbox((lb) => (lb ? { ...lb, index } : lb))}
           onVote={voteDish}
+          onAddComment={addComment}
         />
       )}
     </main>

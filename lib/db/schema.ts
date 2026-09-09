@@ -19,6 +19,13 @@ export const dishes = pgTable('dishes', {
   createdAt:  timestamp('created_at').notNull().defaultNow(),
 })
 
+export const comments = pgTable('comments', {
+  id:        text('id').primaryKey(),
+  dishId:    text('dish_id').notNull(),
+  body:      text('body').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 export const adminCredentials = pgTable('admin_credentials', {
   id:       integer('id').primaryKey().default(sql`1`),
   username: text('username').notNull().default('max'),
@@ -27,4 +34,5 @@ export const adminCredentials = pgTable('admin_credentials', {
 
 export type VesselRow            = typeof vessels.$inferSelect
 export type DishRow              = typeof dishes.$inferSelect
+export type CommentRow           = typeof comments.$inferSelect
 export type AdminCredentialsRow  = typeof adminCredentials.$inferSelect

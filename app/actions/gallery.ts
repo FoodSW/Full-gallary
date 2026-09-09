@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { eq, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { db } from '@/lib/db'
-import { dishes, vessels, adminCredentials } from '@/lib/db/schema'
+import { dishes, vessels, adminCredentials, comments } from '@/lib/db/schema'
 import type { Vessel, Dish } from '@/lib/gallery-data'
 
 // ---------------------------------------------------------------------------
@@ -22,6 +22,7 @@ function buildVessels(
     thumbsUp: number
     thumbsDown: number
   }[],
+  commentRows: { id: string; dishId: string; body: string; createdAt: Date }[] = [],
 ): Vessel[] {
   return vesselRows.map((v) => {
     const vDishes: Dish[] = dishRows
@@ -32,6 +33,9 @@ function buildVessels(
         date: d.date.toISOString(),
         thumbsUp: d.thumbsUp,
         thumbsDown: d.thumbsDown,
+        comments: commentRows
+          .filter((c) => c.dishId === d.id)
+          .map((c) => ({ id: c.id, body: c.body, createdAt: c.createdAt.toISOString() })),
       }))
 
     const rank = vDishes.reduce((s, d) => s + (d.thumbsUp - d.thumbsDown), 0)
@@ -51,11 +55,16 @@ function buildVessels(
 // ---------------------------------------------------------------------------
 
 export async function getVessels(): Promise<Vessel[]> {
-  const [vesselRows, dishRows] = await Promise.all([
+  const [vesselRows, dishRows, commentRows] = await Promise.all([
     db.select().from(vessels).orderBy(vessels.createdAt),
     db.select().from(dishes).orderBy(dishes.createdAt),
+    db.select().from(comments).orderBy(comments.createdAt),
   ])
-  return buildVessels(vesselRows, dishRows as Parameters<typeof buildVessels>[1])
+  return buildVessels(
+    vesselRows,
+    dishRows as Parameters<typeof buildVessels>[1],
+    commentRows as Parameters<typeof buildVessels>[2],
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -91,6 +100,10 @@ export async function updateVesselThumbnail(name: string, thumbnail: string): Pr
 export async function deleteVessel(name: string): Promise<void> {
   const [vessel] = await db.select({ id: vessels.id }).from(vessels).where(eq(vessels.name, name))
   if (!vessel) return
+  const vDishes = await db.select({ id: dishes.id }).from(dishes).where(eq(dishes.vesselId, vessel.id))
+  for (const d of vDishes) {
+    await db.delete(comments).where(eq(comments.dishId, d.id))
+  }
   await db.delete(dishes).where(eq(dishes.vesselId, vessel.id))
   await db.delete(vessels).where(eq(vessels.id, vessel.id))
   revalidatePath('/')
@@ -123,9 +136,29 @@ export async function addDish(
 }
 
 export async function deleteDish(dishId: string): Promise<void> {
+  await db.delete(comments).where(eq(comments.dishId, dishId))
   await db.delete(dishes).where(eq(dishes.id, dishId))
   revalidatePath('/')
   revalidatePath('/admin')
+}
+
+// ---------------------------------------------------------------------------
+// Comments
+// ---------------------------------------------------------------------------
+
+export async function addComment(
+  dishId: string,
+  body: string,
+): Promise<{ ok: boolean; comment?: { id: string; body: string; createdAt: string } }> {
+  const trimmed = body.trim()
+  if (!trimmed) return { ok: false }
+  // Cap length to keep the UI tidy and prevent abuse.
+  const clean = trimmed.slice(0, 500)
+  const id = `c-${nanoid(10)}`
+  const createdAt = new Date()
+  await db.insert(comments).values({ id, dishId, body: clean, createdAt })
+  revalidatePath('/')
+  return { ok: true, comment: { id, body: clean, createdAt: createdAt.toISOString() } }
 }
 
 // ---------------------------------------------------------------------------

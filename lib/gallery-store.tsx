@@ -11,6 +11,7 @@ import {
   addDish as addDishAction,
   deleteDish as deleteDishAction,
   voteDish as voteDishAction,
+  addComment as addCommentAction,
 } from "@/app/actions/gallery"
 import type { Dish, RankedDish, Vessel } from "@/lib/gallery-data"
 import { dishRank } from "@/lib/gallery-data"
@@ -23,6 +24,7 @@ type GalleryStore = {
   vessels: Vessel[]
   ready: boolean
   voteDish: (dishId: string, deltaUp: number, deltaDown: number) => void
+  addComment: (dishId: string, body: string) => void
   addVessel: (name: string, thumbnail: string) => void
   renameVessel: (oldName: string, newName: string) => void
   deleteVessel: (name: string) => void
@@ -69,6 +71,33 @@ export function GalleryStoreProvider({ children }: { children: React.ReactNode }
         { revalidate: false },
       )
       voteDishAction(dishId, deltaUp, deltaDown).then(revalidate)
+    },
+    [revalidate],
+  )
+
+  const addComment = useCallback(
+    (dishId: string, body: string) => {
+      const trimmed = body.trim()
+      if (!trimmed) return
+      const optimistic = {
+        id: `tmp-${Date.now()}`,
+        body: trimmed.slice(0, 500),
+        createdAt: new Date().toISOString(),
+      }
+      // Optimistic append, then persist and revalidate.
+      globalMutate(
+        SWR_KEY,
+        (prev: Vessel[] = []) =>
+          prev.map((v) => {
+            if (!v.dishes.some((d) => d.id === dishId)) return v
+            const dishes = v.dishes.map((d) =>
+              d.id === dishId ? { ...d, comments: [...d.comments, optimistic] } : d,
+            )
+            return { ...v, dishes }
+          }),
+        { revalidate: false },
+      )
+      addCommentAction(dishId, trimmed).then(revalidate)
     },
     [revalidate],
   )
@@ -123,6 +152,7 @@ export function GalleryStoreProvider({ children }: { children: React.ReactNode }
       vessels,
       ready,
       voteDish,
+      addComment,
       addVessel,
       renameVessel,
       deleteVessel,
@@ -131,7 +161,7 @@ export function GalleryStoreProvider({ children }: { children: React.ReactNode }
       deleteDish,
       reset,
     }),
-    [vessels, ready, voteDish, addVessel, renameVessel, deleteVessel, updateVesselThumbnail, addDish, deleteDish, reset],
+    [vessels, ready, voteDish, addComment, addVessel, renameVessel, deleteVessel, updateVesselThumbnail, addDish, deleteDish, reset],
   )
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>

@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, X } from "lucide-react"
 import { useCallback, useEffect } from "react"
 import type { Dish } from "@/lib/gallery-data"
 import { ThumbsRating } from "./thumbs-rating"
+import { DishComments } from "./dish-comments"
 
 type LightboxProps = {
   dishes: Dish[]
@@ -12,6 +13,7 @@ type LightboxProps = {
   onClose: () => void
   onNavigate: (index: number) => void
   onVote: (dishId: string, deltaUp: number, deltaDown: number) => void
+  onAddComment: (dishId: string, body: string) => void
 }
 
 function formatLong(iso: string) {
@@ -22,7 +24,7 @@ function formatLong(iso: string) {
   })
 }
 
-export function Lightbox({ dishes, index, onClose, onNavigate, onVote }: LightboxProps) {
+export function Lightbox({ dishes, index, onClose, onNavigate, onVote, onAddComment }: LightboxProps) {
   const dish = dishes[index]
 
   const prev = useCallback(
@@ -75,10 +77,10 @@ export function Lightbox({ dishes, index, onClose, onNavigate, onVote }: Lightbo
       </button>
 
       <div
-        className="relative flex max-h-[85vh] w-full max-w-3xl flex-col"
+        className="relative flex max-h-[88vh] w-full max-w-3xl flex-col overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="relative aspect-[4/3] w-full overflow-hidden rounded-md">
+        <div className="relative aspect-[4/3] w-full shrink-0 overflow-hidden rounded-md bg-black/40">
           <Image
             src={dish.image || "/placeholder.svg"}
             alt="Dish served on board"
@@ -87,9 +89,9 @@ export function Lightbox({ dishes, index, onClose, onNavigate, onVote }: Lightbo
             className="object-contain"
           />
         </div>
-        <div className="mt-3 flex flex-col items-center gap-2 text-white">
+        <div className="mt-3 flex flex-col items-center gap-3 text-white">
           <p className="text-sm text-white/80">{formatLong(dish.date)}</p>
-          <div className="w-full max-w-xs">
+          <div className="w-full max-w-sm">
             <ThumbsRating
               dishId={dish.id}
               thumbsUp={dish.thumbsUp}
@@ -97,6 +99,14 @@ export function Lightbox({ dishes, index, onClose, onNavigate, onVote }: Lightbo
               size={22}
               variant="light"
               onVote={(deltaUp, deltaDown) => onVote(dish.id, deltaUp, deltaDown)}
+            />
+          </div>
+          <div className="w-full max-w-sm border-t border-white/15 pt-3">
+            <DishComments
+              dishId={dish.id}
+              comments={dish.comments}
+              variant="light"
+              onAddComment={(body) => onAddComment(dish.id, body)}
             />
           </div>
         </div>

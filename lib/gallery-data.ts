@@ -1,9 +1,16 @@
+export type Comment = {
+  id: string
+  body: string
+  createdAt: string // ISO date
+}
+
 export type Dish = {
   id: string
   image: string
   date: string // ISO date
   thumbsUp: number
   thumbsDown: number
+  comments: Comment[]
 }
 
 export type Vessel = {
@@ -57,6 +64,7 @@ function buildDishes(seed: number, count: number): Dish[] {
       date,
       thumbsUp,
       thumbsDown,
+      comments: [],
     })
   }
   return dishes

@@ -1,6 +1,7 @@
 "use client"
 
 import Image from "next/image"
+import { MessageSquare } from "lucide-react"
 import type { Dish } from "@/lib/gallery-data"
 import { ThumbsRating } from "./thumbs-rating"
 
@@ -40,6 +41,12 @@ export function PhotoCard({ dish, onOpen, onVote }: PhotoCardProps) {
           sizes="150px"
           className="object-cover transition-transform duration-300 group-hover:scale-105"
         />
+        {dish.comments.length > 0 && (
+          <span className="absolute right-1.5 top-1.5 inline-flex items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
+            <MessageSquare size={11} />
+            {dish.comments.length}
+          </span>
+        )}
       </div>
       <div className="space-y-1 p-2">
         <p className="text-[11px] text-muted-foreground">{formatShort(dish.date)}</p>
