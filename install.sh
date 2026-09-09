@@ -196,7 +196,13 @@ run_as "${SERVICE_USER}" bash -lc "cd '${APP_DIR}' && pnpm build"
 # ---------------------------------------------------------------------------
 # 10. systemd service (auto-start on boot, restart on failure)
 # ---------------------------------------------------------------------------
-PNPM_BIN="$(command -v pnpm)"
+# Run Node directly against Next's entry instead of `pnpm start`. Under
+# systemd's minimal environment pnpm often can't locate a HOME/PATH to spawn
+# Node and exits non-zero; calling the absolute node binary on Next's bin script
+# removes that dependency and is the standard way to run Next.js under systemd.
+NODE_BIN="$(command -v node)"
+NEXT_BIN="${APP_DIR}/node_modules/next/dist/bin/next"
+NODE_DIR="$(dirname "${NODE_BIN}")"
 log "Creating systemd service '${SERVICE_NAME}'…"
 $SUDO tee "/etc/systemd/system/${SERVICE_NAME}.service" >/dev/null <<UNIT
 [Unit]
@@ -208,10 +214,16 @@ Wants=postgresql.service
 Type=simple
 User=${SERVICE_USER}
 WorkingDirectory=${APP_DIR}
-EnvironmentFile=${APP_DIR}/.env.local
+# Leading '-' tolerates a missing env file so the unit still starts.
+EnvironmentFile=-${APP_DIR}/.env.local
 Environment=NODE_ENV=production
 Environment=PORT=${APP_PORT}
-ExecStart=${PNPM_BIN} start
+Environment=PATH=${NODE_DIR}:/usr/local/bin:/usr/bin:/bin
+# Free the port before starting so a lingering/orphaned listener can't cause a
+# permanent EADDRINUSE restart loop. Leading '-' ignores failure (e.g. nothing
+# to kill, or fuser missing).
+ExecStartPre=-/bin/sh -c 'fuser -k ${APP_PORT}/tcp || true'
+ExecStart=${NODE_BIN} ${NEXT_BIN} start -p ${APP_PORT}
 Restart=on-failure
 RestartSec=5
 
@@ -221,7 +233,20 @@ UNIT
 
 $SUDO systemctl daemon-reload
 $SUDO systemctl enable "${SERVICE_NAME}"
+
+# Stop any previous instance and free the port before (re)starting, so an
+# orphaned process from an earlier failed run can't hold port ${APP_PORT}.
+$SUDO systemctl stop "${SERVICE_NAME}" 2>/dev/null || true
+$SUDO fuser -k "${APP_PORT}/tcp" 2>/dev/null || true
+sleep 1
 $SUDO systemctl restart "${SERVICE_NAME}"
+
+# Give it a moment, then surface status/logs immediately if it failed to start.
+sleep 3
+if ! $SUDO systemctl is-active --quiet "${SERVICE_NAME}"; then
+  warn "Service did not start cleanly. Recent logs:"
+  $SUDO journalctl -u "${SERVICE_NAME}" -n 30 --no-pager || true
+fi
 
 # ---------------------------------------------------------------------------
 # Done
