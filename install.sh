@@ -182,10 +182,13 @@ fi
 # 9. Install dependencies and build (run as the service user)
 # ---------------------------------------------------------------------------
 log "Installing dependencies (pnpm install)…"
-# Approved native build scripts (sharp, msw) live in pnpm-workspace.yaml's
-# onlyBuiltDependencies. --config.strictDepBuilds=false is a safety net so a
-# stale node_modules or an older pnpm can never hard-fail on ignored builds.
-run_as "${SERVICE_USER}" bash -lc "cd '${APP_DIR}' && pnpm install --frozen-lockfile --config.strictDepBuilds=false || pnpm install --no-frozen-lockfile --config.strictDepBuilds=false"
+# Native build scripts (sharp, msw) are approved via onlyBuiltDependencies in
+# pnpm-workspace.yaml. A node_modules left over from an earlier run (created
+# before that approval existed) records those builds as "ignored" and is reused
+# on re-install, so ERR_PNPM_IGNORED_BUILDS keeps recurring. Remove node_modules
+# first so the corrected build-approval config always takes effect, then run the
+# approved build scripts explicitly as a belt-and-suspenders step.
+run_as "${SERVICE_USER}" bash -lc "cd '${APP_DIR}' && rm -rf node_modules && (pnpm install --frozen-lockfile || pnpm install --no-frozen-lockfile) && pnpm rebuild sharp msw 2>/dev/null || true"
 
 log "Building the app (pnpm build)…"
 run_as "${SERVICE_USER}" bash -lc "cd '${APP_DIR}' && pnpm build"
