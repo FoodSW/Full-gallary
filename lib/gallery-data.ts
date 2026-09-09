@@ -4,6 +4,7 @@ export type AdminUser = {
   id: string
   username: string
   role: AdminRole
+  vessels: string[] // vessel names a group manager may moderate
   createdAt: string // ISO date
 }
 

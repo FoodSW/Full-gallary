@@ -14,12 +14,14 @@ import type { AdminRole } from "@/lib/gallery-data"
 const SESSION_KEY      = "swire-admin-auth"
 const SESSION_USER_KEY = "swire-admin-user"
 const SESSION_ROLE_KEY = "swire-admin-role"
+const SESSION_VESSELS_KEY = "swire-admin-vessels"
 
 export default function AdminPage() {
   const { vessels, ready } = useGalleryStore()
   const [authed, setAuthed]   = useState(false)
   const [username, setUsername] = useState("max")
   const [role, setRole] = useState<AdminRole>("administrator")
+  const [permittedVessels, setPermittedVessels] = useState<string[]>([])
 
   useEffect(() => {
     const isAuthed = sessionStorage.getItem(SESSION_KEY) === "1"
@@ -27,24 +29,37 @@ export default function AdminPage() {
     if (isAuthed) {
       setUsername(sessionStorage.getItem(SESSION_USER_KEY) ?? "max")
       setRole((sessionStorage.getItem(SESSION_ROLE_KEY) as AdminRole) ?? "administrator")
+      try {
+        setPermittedVessels(JSON.parse(sessionStorage.getItem(SESSION_VESSELS_KEY) ?? "[]"))
+      } catch {
+        setPermittedVessels([])
+      }
     }
   }, [])
 
-  const login = (user: string, userRole: AdminRole) => {
+  const login = (user: string, userRole: AdminRole, vesselNames: string[]) => {
     sessionStorage.setItem(SESSION_KEY, "1")
     sessionStorage.setItem(SESSION_USER_KEY, user)
     sessionStorage.setItem(SESSION_ROLE_KEY, userRole)
+    sessionStorage.setItem(SESSION_VESSELS_KEY, JSON.stringify(vesselNames))
     setAuthed(true)
     setUsername(user)
     setRole(userRole)
+    setPermittedVessels(vesselNames)
   }
 
   const logout = () => {
     sessionStorage.removeItem(SESSION_KEY)
     sessionStorage.removeItem(SESSION_USER_KEY)
     sessionStorage.removeItem(SESSION_ROLE_KEY)
+    sessionStorage.removeItem(SESSION_VESSELS_KEY)
     setAuthed(false)
   }
+
+  const isManager = role === "manager"
+  const visibleVessels = isManager
+    ? vessels.filter((v) => permittedVessels.includes(v.name))
+    : vessels
 
   const handleCredentialChange = (newUsername: string) => {
     sessionStorage.setItem(SESSION_USER_KEY, newUsername)
@@ -97,9 +112,18 @@ export default function AdminPage() {
       <div className="mx-auto max-w-5xl space-y-8 px-4 py-8">
         {ready ? (
           <>
-            <DashboardStats vessels={vessels} />
-            {role === "administrator" && <AdminUserManager currentUsername={username} />}
-            <VesselManager vessels={vessels} />
+            <DashboardStats vessels={visibleVessels} />
+            {role === "administrator" && (
+              <AdminUserManager currentUsername={username} vessels={vessels} />
+            )}
+            {isManager && (
+              <p className="rounded-md border border-gold/40 bg-gold/5 px-4 py-3 text-sm text-muted-foreground">
+                You can moderate {permittedVessels.length} assigned{" "}
+                {permittedVessels.length === 1 ? "vessel" : "vessels"}. Contact an administrator to
+                change your access.
+              </p>
+            )}
+            <VesselManager vessels={visibleVessels} canManageVessels={!isManager} />
           </>
         ) : (
           <p className="text-center text-sm text-muted-foreground">Loading data…</p>

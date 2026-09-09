@@ -23,8 +23,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid file type' }, { status: 400 })
     }
 
-    // Build the target directory: public/vessels/<vessel-name>/
-    const dir = path.join(process.cwd(), 'public', 'vessels', safeFolder)
+    // Build the target directory under the local web root:
+    // public/gallery/upload/<vessel-name>/  (served at /gallery/upload/...)
+    const dir = path.join(process.cwd(), 'public', 'gallery', 'upload', safeFolder)
     await mkdir(dir, { recursive: true })
 
     // Use a timestamp-based filename to avoid collisions.
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
     await writeFile(filePath, buffer)
 
     // Return the public URL path so Next.js <Image> can serve it.
-    const publicPath = `/vessels/${safeFolder}/${filename}`
+    const publicPath = `/gallery/upload/${safeFolder}/${filename}`
     return NextResponse.json({ path: publicPath })
   } catch (err) {
     console.error('[upload]', err)
