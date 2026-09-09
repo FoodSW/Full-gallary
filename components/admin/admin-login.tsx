@@ -3,9 +3,10 @@
 import { useState } from "react"
 import { Lock, Loader2, ShieldAlert } from "lucide-react"
 import { verifyAdminCredentials } from "@/app/actions/gallery"
+import type { AdminRole } from "@/lib/gallery-data"
 
 type AdminLoginProps = {
-  onSuccess: (username: string) => void
+  onSuccess: (username: string, role: AdminRole) => void
 }
 
 export function AdminLogin({ onSuccess }: AdminLoginProps) {
@@ -18,10 +19,10 @@ export function AdminLogin({ onSuccess }: AdminLoginProps) {
     e.preventDefault()
     setLoading(true)
     setError(false)
-    const ok = await verifyAdminCredentials(username.trim(), password)
+    const result = await verifyAdminCredentials(username.trim(), password)
     setLoading(false)
-    if (ok) {
-      onSuccess(username.trim())
+    if (result.ok && result.username && result.role) {
+      onSuccess(result.username, result.role)
     } else {
       setError(true)
     }
