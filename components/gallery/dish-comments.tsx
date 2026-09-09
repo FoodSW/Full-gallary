@@ -66,31 +66,33 @@ export function DishComments({ dishId, comments, variant = "dark", onAddComment 
         </ul>
       )}
 
-      {commented && (
-        <p className={`text-[11px] ${headingClass}`}>You commented on this from this device.</p>
+      {commented ? (
+        <p className={`text-[11px] ${headingClass}`}>You already commented on this from this device.</p>
+      ) : (
+        <>
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !e.nativeEvent.isComposing) {
+                e.preventDefault()
+                submit()
+              }
+            }}
+            placeholder="Add a comment..."
+            rows={2}
+            className={`w-full resize-none rounded-md border px-2.5 py-1.5 text-sm outline-none transition-colors ${inputClass}`}
+          />
+          <button
+            type="button"
+            onClick={submit}
+            disabled={!draft.trim()}
+            className="rounded-md bg-gold px-3 py-1.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-gold-dark disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Post comment
+          </button>
+        </>
       )}
-
-      <textarea
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !e.nativeEvent.isComposing) {
-            e.preventDefault()
-            submit()
-          }
-        }}
-        placeholder="Add a comment..."
-        rows={2}
-        className={`w-full resize-none rounded-md border px-2.5 py-1.5 text-sm outline-none transition-colors ${inputClass}`}
-      />
-      <button
-        type="button"
-        onClick={submit}
-        disabled={!draft.trim()}
-        className="rounded-md bg-gold px-3 py-1.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-gold-dark disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        Post comment
-      </button>
     </div>
   )
 }
