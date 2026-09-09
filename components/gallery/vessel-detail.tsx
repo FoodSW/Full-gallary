@@ -1,7 +1,7 @@
 "use client"
 
 import Image from "next/image"
-import { ChevronDown, ChevronRight, EyeOff, Star } from "lucide-react"
+import { ChevronDown, ChevronRight, ThumbsUp } from "lucide-react"
 import { useMemo, useState } from "react"
 import type { Dish, Vessel } from "@/lib/gallery-data"
 import { groupDishes, MONTH_NAMES } from "@/lib/gallery-data"
@@ -11,7 +11,7 @@ type VesselDetailProps = {
   vessel: Vessel
   onHide: () => void
   onOpenPhoto: (dishes: Dish[], index: number) => void
-  onRate: (dishId: string, value: number) => void
+  onVote: (dishId: string, deltaUp: number, deltaDown: number) => void
 }
 
 function AccordionRow({
@@ -55,7 +55,7 @@ function AccordionRow({
   )
 }
 
-export function VesselDetail({ vessel, onHide, onOpenPhoto, onRate }: VesselDetailProps) {
+export function VesselDetail({ vessel, onHide, onOpenPhoto, onVote }: VesselDetailProps) {
   const years = useMemo(() => groupDishes(vessel.dishes), [vessel])
   const orderedDishes = useMemo(
     () => years.flatMap((y) => y.months.flatMap((m) => m.days.flatMap((d) => d.dishes))),
@@ -98,9 +98,10 @@ export function VesselDetail({ vessel, onHide, onOpenPhoto, onRate }: VesselDeta
       <p className="mt-2 text-sm text-muted-foreground">{vessel.photoCount} photos</p>
 
       <div className="mt-4">
-        <span className="inline-flex items-center gap-1 rounded-full border border-gold/50 px-3 py-1 text-sm font-semibold">
-          <Star size={14} className="text-gold" fill="currentColor" />
-          {vessel.rating.toFixed(1)}
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-gold/50 px-3 py-1 text-sm font-semibold">
+          <ThumbsUp size={14} className="text-gold" fill="currentColor" />
+          <span className="tracking-wide text-muted-foreground">RANK</span>
+          {vessel.rank}
         </span>
         <h2 className="mt-2 text-2xl font-bold">{vessel.name}</h2>
       </div>
@@ -167,7 +168,7 @@ export function VesselDetail({ vessel, onHide, onOpenPhoto, onRate }: VesselDeta
                                               orderedDishes.findIndex((d) => d.id === dish.id),
                                             )
                                           }
-                                          onRate={(value) => onRate(dish.id, value)}
+                                          onVote={(deltaUp, deltaDown) => onVote(dish.id, deltaUp, deltaDown)}
                                         />
                                       ))}
                                     </div>

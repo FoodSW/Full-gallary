@@ -10,18 +10,19 @@ import {
   updateVesselThumbnail as updateVesselThumbnailAction,
   addDish as addDishAction,
   deleteDish as deleteDishAction,
-  rateDish as rateDishAction,
+  voteDish as voteDishAction,
 } from "@/app/actions/gallery"
 import type { Dish, RankedDish, Vessel } from "@/lib/gallery-data"
+import { dishRank } from "@/lib/gallery-data"
 
 const SWR_KEY = "gallery-vessels"
 
-type NewDishInput = { image: string; date: string; rating: number }
+type NewDishInput = { image: string; date: string }
 
 type GalleryStore = {
   vessels: Vessel[]
   ready: boolean
-  rateDish: (dishId: string, value: number) => void
+  voteDish: (dishId: string, deltaUp: number, deltaDown: number) => void
   addVessel: (name: string, thumbnail: string) => void
   renameVessel: (oldName: string, newName: string) => void
   deleteVessel: (name: string) => void
@@ -46,8 +47,8 @@ export function GalleryStoreProvider({ children }: { children: React.ReactNode }
 
   const revalidate = useCallback(() => globalMutate(SWR_KEY), [])
 
-  const rateDish = useCallback(
-    (dishId: string, value: number) => {
+  const voteDish = useCallback(
+    (dishId: string, deltaUp: number, deltaDown: number) => {
       // Optimistic update first, then persist.
       globalMutate(
         SWR_KEY,
@@ -56,17 +57,18 @@ export function GalleryStoreProvider({ children }: { children: React.ReactNode }
             if (!v.dishes.some((d) => d.id === dishId)) return v
             const dishes = v.dishes.map((d) => {
               if (d.id !== dishId) return d
-              const votes = d.votes + 1
-              const rating = Math.round(((d.rating * d.votes + value) / votes) * 10) / 10
-              return { ...d, rating, votes }
+              return {
+                ...d,
+                thumbsUp: Math.max(0, d.thumbsUp + deltaUp),
+                thumbsDown: Math.max(0, d.thumbsDown + deltaDown),
+              }
             })
-            const rating =
-              Math.round((dishes.reduce((s, d) => s + d.rating, 0) / dishes.length) * 10) / 10
-            return { ...v, dishes, rating }
+            const rank = dishes.reduce((s, d) => s + dishRank(d), 0)
+            return { ...v, dishes, rank }
           }),
         { revalidate: false },
       )
-      rateDishAction(dishId, value).then(revalidate)
+      voteDishAction(dishId, deltaUp, deltaDown).then(revalidate)
     },
     [revalidate],
   )
@@ -120,7 +122,7 @@ export function GalleryStoreProvider({ children }: { children: React.ReactNode }
     () => ({
       vessels,
       ready,
-      rateDish,
+      voteDish,
       addVessel,
       renameVessel,
       deleteVessel,
@@ -129,7 +131,7 @@ export function GalleryStoreProvider({ children }: { children: React.ReactNode }
       deleteDish,
       reset,
     }),
-    [vessels, ready, rateDish, addVessel, renameVessel, deleteVessel, updateVesselThumbnail, addDish, deleteDish, reset],
+    [vessels, ready, voteDish, addVessel, renameVessel, deleteVessel, updateVesselThumbnail, addDish, deleteDish, reset],
   )
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
@@ -145,7 +147,7 @@ export function extremeDishes(vessels: Vessel[]) {
   const all: RankedDish[] = vessels.flatMap((v) =>
     v.dishes.map((d) => ({ ...d, vessel: v.name })),
   )
-  const sorted = [...all].sort((a, b) => a.rating - b.rating)
+  const sorted = [...all].sort((a, b) => dishRank(a) - dishRank(b))
   return {
     lowest: sorted.slice(0, 3),
     highest: [...sorted].reverse().slice(0, 3),

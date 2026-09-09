@@ -4,14 +4,14 @@ import Image from "next/image"
 import { ChevronLeft, ChevronRight, X } from "lucide-react"
 import { useCallback, useEffect } from "react"
 import type { Dish } from "@/lib/gallery-data"
-import { StarRating } from "./star-rating"
+import { ThumbsRating } from "./thumbs-rating"
 
 type LightboxProps = {
   dishes: Dish[]
   index: number
   onClose: () => void
   onNavigate: (index: number) => void
-  onRate: (dishId: string, value: number) => void
+  onVote: (dishId: string, deltaUp: number, deltaDown: number) => void
 }
 
 function formatLong(iso: string) {
@@ -22,7 +22,7 @@ function formatLong(iso: string) {
   })
 }
 
-export function Lightbox({ dishes, index, onClose, onNavigate, onRate }: LightboxProps) {
+export function Lightbox({ dishes, index, onClose, onNavigate, onVote }: LightboxProps) {
   const dish = dishes[index]
 
   const prev = useCallback(
@@ -89,13 +89,16 @@ export function Lightbox({ dishes, index, onClose, onNavigate, onRate }: Lightbo
         </div>
         <div className="mt-3 flex flex-col items-center gap-2 text-white">
           <p className="text-sm text-white/80">{formatLong(dish.date)}</p>
-          <StarRating
-            rating={dish.rating}
-            votes={dish.votes}
-            size={22}
-            interactive
-            onRate={(value) => onRate(dish.id, value)}
-          />
+          <div className="w-full max-w-xs">
+            <ThumbsRating
+              dishId={dish.id}
+              thumbsUp={dish.thumbsUp}
+              thumbsDown={dish.thumbsDown}
+              size={22}
+              variant="light"
+              onVote={(deltaUp, deltaDown) => onVote(dish.id, deltaUp, deltaDown)}
+            />
+          </div>
         </div>
       </div>
 

@@ -165,7 +165,7 @@ export function VesselManager({ vessels }: { vessels: Vessel[] }) {
                       />
                       <span className="font-medium text-card-foreground">{vessel.name}</span>
                       <span className="text-xs text-muted-foreground">
-                        {vessel.dishes.length} photos · {vessel.rating.toFixed(1)}★
+                        {vessel.dishes.length} photos · rank {vessel.rank}
                       </span>
                     </button>
                     <button

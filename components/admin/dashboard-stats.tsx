@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo } from "react"
-import { Ship, ImageIcon, Star, MessageSquare } from "lucide-react"
+import { Ship, ImageIcon, ThumbsUp, MessageSquare } from "lucide-react"
 import type { Vessel } from "@/lib/gallery-data"
 
 type DashboardStatsProps = {
@@ -12,22 +12,21 @@ export function DashboardStats({ vessels }: DashboardStatsProps) {
   const stats = useMemo(() => {
     const totalPhotos = vessels.reduce((sum, v) => sum + v.dishes.length, 0)
     const totalVotes = vessels.reduce(
-      (sum, v) => sum + v.dishes.reduce((s, d) => s + d.votes, 0),
+      (sum, v) => sum + v.dishes.reduce((s, d) => s + d.thumbsUp + d.thumbsDown, 0),
       0,
     )
-    const allRatings = vessels.flatMap((v) => v.dishes.map((d) => d.rating))
-    const avg =
-      allRatings.length > 0
-        ? Math.round((allRatings.reduce((s, r) => s + r, 0) / allRatings.length) * 10) / 10
-        : 0
-    return { totalPhotos, totalVotes, avg }
+    const netRank = vessels.reduce(
+      (sum, v) => sum + v.dishes.reduce((s, d) => s + (d.thumbsUp - d.thumbsDown), 0),
+      0,
+    )
+    return { totalPhotos, totalVotes, netRank }
   }, [vessels])
 
   const cards = [
     { label: "Vessels", value: vessels.length, icon: Ship },
     { label: "Galley photos", value: stats.totalPhotos, icon: ImageIcon },
-    { label: "Avg. rating", value: stats.avg.toFixed(1), icon: Star },
-    { label: "Total reviews", value: stats.totalVotes, icon: MessageSquare },
+    { label: "Net rank", value: stats.netRank, icon: ThumbsUp },
+    { label: "Total votes", value: stats.totalVotes, icon: MessageSquare },
   ]
 
   return (

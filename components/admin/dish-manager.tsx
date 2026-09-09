@@ -141,7 +141,6 @@ export function DishManager({ vessel }: DishManagerProps) {
           await addDish(vessel.name, {
             image: imagePath,
             date: new Date(item.date).toISOString(),
-            rating: 3,
           })
 
           setPending((prev) =>
@@ -209,7 +208,7 @@ export function DishManager({ vessel }: DishManagerProps) {
         {anyPending && (
           <div className="space-y-2">
             <p className="text-xs font-medium text-muted-foreground">
-              {pending.length} photo{pending.length > 1 ? "s" : ""} staged — set date &amp; rating, then click Upload
+              {pending.length} photo{pending.length > 1 ? "s" : ""} staged — set date, then click Upload
             </p>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {pending.map((item) => (
@@ -315,7 +314,7 @@ export function DishManager({ vessel }: DishManagerProps) {
               <div className="relative aspect-square">
                 <Image
                   src={dish.image || "/placeholder.svg"}
-                  alt={`Dish rated ${dish.rating} stars`}
+                  alt="Galley dish"
                   fill
                   sizes="120px"
                   className="object-cover"
@@ -323,7 +322,10 @@ export function DishManager({ vessel }: DishManagerProps) {
               </div>
               <div className="flex items-center justify-between px-1.5 py-1 text-[11px] text-muted-foreground">
                 <span>{new Date(dish.date).toLocaleDateString()}</span>
-                <span className="font-semibold text-gold">{dish.rating.toFixed(1)}</span>
+                <span className="font-semibold text-gold">
+                  {dish.thumbsUp - dish.thumbsDown > 0 ? "+" : ""}
+                  {dish.thumbsUp - dish.thumbsDown}
+                </span>
               </div>
               <button
                 type="button"

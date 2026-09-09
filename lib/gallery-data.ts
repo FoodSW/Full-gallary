@@ -2,16 +2,21 @@ export type Dish = {
   id: string
   image: string
   date: string // ISO date
-  rating: number // average rating
-  votes: number
+  thumbsUp: number
+  thumbsDown: number
 }
 
 export type Vessel = {
   name: string
   thumbnail: string
-  rating: number
+  rank: number // net thumbs (up − down) across all dishes
   photoCount: number
   dishes: Dish[]
+}
+
+/** Net rank for a single dish: thumbs up minus thumbs down. */
+export function dishRank(d: { thumbsUp: number; thumbsDown: number }) {
+  return d.thumbsUp - d.thumbsDown
 }
 
 export const DISH_IMAGES = [
@@ -43,15 +48,15 @@ function buildDishes(seed: number, count: number): Dish[] {
     const year = 2024 + Math.floor(rng() * 3) // 2024-2026
     const month = 1 + Math.floor(rng() * 12)
     const day = 1 + Math.floor(rng() * 27)
-    const rating = Math.round((1 + rng() * 4) * 10) / 10
-    const votes = 1 + Math.floor(rng() * 8)
+    const thumbsUp = Math.floor(rng() * 12)
+    const thumbsDown = Math.floor(rng() * 6)
     const date = new Date(year, month - 1, day).toISOString()
     dishes.push({
       id: `${seed}-${i}`,
       image: DISH_IMAGES[Math.floor(rng() * DISH_IMAGES.length)],
       date,
-      rating,
-      votes,
+      thumbsUp,
+      thumbsDown,
     })
   }
   return dishes
@@ -76,11 +81,11 @@ export const VESSELS: Vessel[] = VESSEL_NAMES.map((name, index) => {
   const rng = makeRng(seed)
   const photoCount = 40 + Math.floor(rng() * 120)
   const dishes = buildDishes(seed, 14 + Math.floor(rng() * 10))
-  const avg = dishes.reduce((sum, d) => sum + d.rating, 0) / dishes.length
+  const rank = dishes.reduce((sum, d) => sum + dishRank(d), 0)
   return {
     name,
     thumbnail: "/vessel-container.png",
-    rating: Math.round(avg * 10) / 10,
+    rank,
     photoCount,
     dishes,
   }
@@ -92,7 +97,7 @@ export function getExtremeDishes() {
   const all: RankedDish[] = VESSELS.flatMap((v) =>
     v.dishes.map((d) => ({ ...d, vessel: v.name })),
   )
-  const sorted = [...all].sort((a, b) => a.rating - b.rating)
+  const sorted = [...all].sort((a, b) => dishRank(a) - dishRank(b))
   const lowest = sorted.slice(0, 3)
   const highest = [...sorted].reverse().slice(0, 3)
   return { lowest, highest }

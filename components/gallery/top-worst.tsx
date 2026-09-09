@@ -1,8 +1,9 @@
 "use client"
 
 import Image from "next/image"
-import { Star, StarOff } from "lucide-react"
+import { ThumbsUp, ThumbsDown } from "lucide-react"
 import type { RankedDish } from "@/lib/gallery-data"
+import { dishRank } from "@/lib/gallery-data"
 
 type TopWorstProps = {
   lowest: RankedDish[]
@@ -35,8 +36,12 @@ function RankGrid({
           />
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-2 pb-1.5 pt-6 text-left">
             <span className="flex items-center gap-1 text-xs font-semibold text-gold">
-              <Star size={12} fill="currentColor" />
-              {dish.rating.toFixed(1)}
+              {dishRank(dish) >= 0 ? (
+                <ThumbsUp size={12} fill="currentColor" />
+              ) : (
+                <ThumbsDown size={12} fill="currentColor" />
+              )}
+              {dishRank(dish) > 0 ? `+${dishRank(dish)}` : dishRank(dish)}
             </span>
             <span className="text-[11px] text-white/90">{dish.vessel}</span>
           </div>
@@ -54,16 +59,16 @@ export function TopWorst({ lowest, highest, onOpen }: TopWorstProps) {
       <div className="mt-6 space-y-6">
         <section>
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold tracking-wide text-muted-foreground">
-            <StarOff size={16} className="text-gold/70" />
-            LOWEST RATED
+            <ThumbsDown size={16} className="text-gold/70" />
+            LOWEST RANKED
           </div>
           <RankGrid dishes={lowest} onOpen={(i) => onOpen(lowest, i)} />
         </section>
 
         <section>
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold tracking-wide text-gold">
-            <Star size={16} className="text-gold" fill="currentColor" />
-            HIGHEST RATED
+            <ThumbsUp size={16} className="text-gold" fill="currentColor" />
+            HIGHEST RANKED
           </div>
           <RankGrid dishes={highest} onOpen={(i) => onOpen(highest, i)} />
         </section>

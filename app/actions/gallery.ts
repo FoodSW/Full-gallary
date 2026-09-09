@@ -19,8 +19,8 @@ function buildVessels(
     vesselId: string
     image: string
     date: Date
-    rating: string
-    votes: number
+    thumbsUp: number
+    thumbsDown: number
   }[],
 ): Vessel[] {
   return vesselRows.map((v) => {
@@ -30,19 +30,16 @@ function buildVessels(
         id: d.id,
         image: d.image,
         date: d.date.toISOString(),
-        rating: parseFloat(d.rating),
-        votes: d.votes,
+        thumbsUp: d.thumbsUp,
+        thumbsDown: d.thumbsDown,
       }))
 
-    const rating =
-      vDishes.length > 0
-        ? Math.round((vDishes.reduce((s, d) => s + d.rating, 0) / vDishes.length) * 10) / 10
-        : 0
+    const rank = vDishes.reduce((s, d) => s + (d.thumbsUp - d.thumbsDown), 0)
 
     return {
       name: v.name,
       thumbnail: v.thumbnail,
-      rating,
+      rank,
       photoCount: vDishes.length,
       dishes: vDishes,
     }
@@ -106,7 +103,7 @@ export async function deleteVessel(name: string): Promise<void> {
 
 export async function addDish(
   vesselName: string,
-  input: { image: string; date: string; rating: number },
+  input: { image: string; date: string },
 ): Promise<void> {
   const [vessel] = await db
     .select({ id: vessels.id })
@@ -118,8 +115,8 @@ export async function addDish(
     vesselId: vessel.id,
     image: input.image,
     date: new Date(input.date),
-    rating: input.rating.toFixed(2),
-    votes: 1,
+    thumbsUp: 0,
+    thumbsDown: 0,
   })
   revalidatePath('/')
   revalidatePath('/admin')
@@ -185,16 +182,24 @@ export async function updateAdminCredentials(
 }
 
 // ---------------------------------------------------------------------------
-// Rating
+// Ranking (thumbs up / down)
 // ---------------------------------------------------------------------------
 
-export async function rateDish(dishId: string, value: number): Promise<void> {
-  // Compute new weighted average in a single UPDATE — safe against races.
+/**
+ * Apply thumbs deltas to a dish. Deltas may be negative (toggling a vote off or
+ * switching direction); counts are floored at zero. Done in one UPDATE so it is
+ * safe against concurrent votes.
+ */
+export async function voteDish(
+  dishId: string,
+  deltaUp: number,
+  deltaDown: number,
+): Promise<void> {
   await db
     .update(dishes)
     .set({
-      votes: sql`${dishes.votes} + 1`,
-      rating: sql`ROUND((${dishes.rating} * ${dishes.votes} + ${value}) / (${dishes.votes} + 1), 2)`,
+      thumbsUp: sql`GREATEST(${dishes.thumbsUp} + ${deltaUp}, 0)`,
+      thumbsDown: sql`GREATEST(${dishes.thumbsDown} + ${deltaDown}, 0)`,
     })
     .where(eq(dishes.id, dishId))
   revalidatePath('/')

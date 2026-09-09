@@ -1,4 +1,4 @@
-import { numeric, integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 
 export const vessels = pgTable('vessels', {
@@ -10,13 +10,13 @@ export const vessels = pgTable('vessels', {
 })
 
 export const dishes = pgTable('dishes', {
-  id:        text('id').primaryKey(),
-  vesselId:  text('vessel_id').notNull(),
-  image:     text('image').notNull(),
-  date:      timestamp('date').notNull(),
-  rating:    numeric('rating', { precision: 4, scale: 2 }).notNull().default('3'),
-  votes:     integer('votes').notNull().default(1),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
+  id:         text('id').primaryKey(),
+  vesselId:   text('vessel_id').notNull(),
+  image:      text('image').notNull(),
+  date:       timestamp('date').notNull(),
+  thumbsUp:   integer('thumbs_up').notNull().default(0),
+  thumbsDown: integer('thumbs_down').notNull().default(0),
+  createdAt:  timestamp('created_at').notNull().defaultNow(),
 })
 
 export const adminCredentials = pgTable('admin_credentials', {

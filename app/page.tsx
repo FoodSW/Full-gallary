@@ -11,7 +11,7 @@ import type { Dish } from "@/lib/gallery-data"
 import { extremeDishes, useGalleryStore } from "@/lib/gallery-store"
 
 export default function GalleryPage() {
-  const { vessels, rateDish } = useGalleryStore()
+  const { vessels, voteDish } = useGalleryStore()
   const [selected, setSelected] = useState<string | null>(null)
   const [lightbox, setLightbox] = useState<{ dishes: Dish[]; index: number } | null>(null)
 
@@ -22,7 +22,7 @@ export default function GalleryPage() {
 
   const { lowest, highest } = useMemo(() => extremeDishes(vessels), [vessels])
 
-  // Map dish id -> current dish so the lightbox reflects live ratings from the store.
+  // Map dish id -> current dish so the lightbox reflects live votes from the store.
   const dishById = useMemo(() => {
     const map = new Map<string, Dish>()
     for (const v of vessels) for (const d of v.dishes) map.set(d.id, d)
@@ -55,7 +55,7 @@ export default function GalleryPage() {
             vessel={selectedVessel}
             onHide={() => setSelected(null)}
             onOpenPhoto={openLightbox}
-            onRate={rateDish}
+            onVote={voteDish}
           />
         )}
 
@@ -77,7 +77,7 @@ export default function GalleryPage() {
           index={lightbox.index}
           onClose={() => setLightbox(null)}
           onNavigate={(index) => setLightbox((lb) => (lb ? { ...lb, index } : lb))}
-          onRate={rateDish}
+          onVote={voteDish}
         />
       )}
     </main>
