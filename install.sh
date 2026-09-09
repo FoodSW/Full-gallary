@@ -117,7 +117,7 @@ fi
 
 log "Provisioning PostgreSQL role '${DB_USER}' and database '${DB_NAME}'…"
 # Create/idempotently update the role.
-run_as postgres psql -v ON_ERROR_STOP=1 <<SQL
+run_as postgres psql -d template1 -v ON_ERROR_STOP=1 <<SQL
 DO \$\$
 BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${DB_USER}') THEN
@@ -129,8 +129,8 @@ END
 \$\$;
 SQL
 # Create the database if missing (CREATE DATABASE can't run inside a DO block).
-if ! run_as postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'" | grep -q 1; then
-  run_as postgres createdb -O "${DB_USER}" "${DB_NAME}"
+if ! run_as postgres psql -d template1 -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'" | grep -q 1; then
+  run_as postgres createdb --maintenance-db=template1 -O "${DB_USER}" "${DB_NAME}"
 fi
 
 DATABASE_URL="postgresql://${DB_USER}:${DB_PASSWORD}@localhost:5432/${DB_NAME}"
