@@ -182,7 +182,10 @@ fi
 # 9. Install dependencies and build (run as the service user)
 # ---------------------------------------------------------------------------
 log "Installing dependencies (pnpm install)…"
-run_as "${SERVICE_USER}" bash -lc "cd '${APP_DIR}' && pnpm install --frozen-lockfile || pnpm install"
+# Approved native build scripts (sharp, msw) live in pnpm-workspace.yaml's
+# onlyBuiltDependencies. --config.strictDepBuilds=false is a safety net so a
+# stale node_modules or an older pnpm can never hard-fail on ignored builds.
+run_as "${SERVICE_USER}" bash -lc "cd '${APP_DIR}' && pnpm install --frozen-lockfile --config.strictDepBuilds=false || pnpm install --no-frozen-lockfile --config.strictDepBuilds=false"
 
 log "Building the app (pnpm build)…"
 run_as "${SERVICE_USER}" bash -lc "cd '${APP_DIR}' && pnpm build"
