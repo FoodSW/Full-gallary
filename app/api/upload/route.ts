@@ -47,7 +47,10 @@ export async function POST(req: NextRequest) {
     await ensurePhotosTable()
 
     const buffer = Buffer.from(await file.arrayBuffer())
-    const id = `ph-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+    // A cryptographically-unique id per upload. The filename is deliberately
+    // ignored, so uploading a file whose name (or bytes) matches an existing
+    // photo always creates a distinct record and never collides / dedupes.
+    const id = `ph-${crypto.randomUUID()}`
 
     await db.insert(photos).values({
       id,
