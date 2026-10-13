@@ -75,8 +75,15 @@ if command -v node >/dev/null 2>&1 && node -e 'process.exit(parseInt(process.ver
   log "Node.js $(node -v) already present — skipping."
 else
   log "Installing Node.js 20 LTS…"
-  curl -fsSL https://deb.nodesource.com/setup_20.x | $SUDO -E bash -
+  if [ "$(id -u)" -eq 0 ]; then
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+  else
+    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+  fi
   $SUDO apt-get install -y nodejs
+  hash -r 2>/dev/null || true
+  command -v node >/dev/null 2>&1 || die "Node.js installation completed but node was not found on PATH."; echo "Node.js installed: $(node -v)" || true
+  
 fi
 log "Node: $(node -v),  npm: $(npm -v)"
 
