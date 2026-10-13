@@ -8,17 +8,18 @@ import { DashboardStats } from "@/components/admin/dashboard-stats"
 import { VesselManager } from "@/components/admin/vessel-manager"
 import { ChangeCredentials } from "@/components/admin/change-credentials"
 import { AdminUserManager } from "@/components/admin/admin-user-manager"
+import { BackupManager } from "@/components/admin/backup-manager"
 import { useGalleryStore } from "@/lib/gallery-store"
 import type { AdminRole } from "@/lib/gallery-data"
 
-const SESSION_KEY      = "swire-admin-auth"
+const SESSION_KEY = "swire-admin-auth"
 const SESSION_USER_KEY = "swire-admin-user"
 const SESSION_ROLE_KEY = "swire-admin-role"
 const SESSION_VESSELS_KEY = "swire-admin-vessels"
 
 export default function AdminPage() {
   const { vessels, ready } = useGalleryStore()
-  const [authed, setAuthed]   = useState(false)
+  const [authed, setAuthed] = useState(false)
   const [username, setUsername] = useState("max")
   const [role, setRole] = useState<AdminRole>("administrator")
   const [permittedVessels, setPermittedVessels] = useState<string[]>([])
@@ -85,10 +86,7 @@ export default function AdminPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {role === "administrator" && (
-              <ChangeCredentials
-                currentUsername={username}
-                onSuccess={handleCredentialChange}
-              />
+              <ChangeCredentials currentUsername={username} onSuccess={handleCredentialChange} />
             )}
             <Link
               href="/"
@@ -109,18 +107,19 @@ export default function AdminPage() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-5xl space-y-8 px-4 py-8">
+      <div className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-8">
         {ready ? (
           <>
             <DashboardStats vessels={visibleVessels} />
             {role === "administrator" && (
-              <AdminUserManager currentUsername={username} vessels={vessels} />
+              <>
+                <AdminUserManager currentUsername={username} vessels={vessels} />
+                <BackupManager />
+              </>
             )}
             {isManager && (
               <p className="rounded-md border border-gold/40 bg-gold/5 px-4 py-3 text-sm text-muted-foreground">
-                You can moderate {permittedVessels.length} assigned{" "}
-                {permittedVessels.length === 1 ? "vessel" : "vessels"}. Contact an administrator to
-                change your access.
+                You can moderate {permittedVessels.length} assigned {permittedVessels.length === 1 ? "vessel" : "vessels"}. Contact an administrator to change your access.
               </p>
             )}
             <VesselManager vessels={visibleVessels} canManageVessels={!isManager} />
