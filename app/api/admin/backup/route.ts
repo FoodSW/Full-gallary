@@ -30,29 +30,37 @@ function emptyTables(): Record<BackupTable, Record<string, unknown>[]> {
 }
 
 export async function GET() {
-  await ensureSchema()
-  const tables = emptyTables()
+  try {
+    await ensureSchema()
+    const tables = emptyTables()
 
-  for (const table of TABLES) {
-    const result = await pool.query(`SELECT * FROM "${table}" ORDER BY 1`)
-    tables[table] = result.rows
+    for (const table of TABLES) {
+      const result = await pool.query(`SELECT * FROM "${table}" ORDER BY 1`)
+      tables[table] = result.rows
+    }
+
+    const payload: BackupPayload = {
+      format: "swire-gallery-backup",
+      version: 1,
+      createdAt: new Date().toISOString(),
+      tables,
+    }
+
+    return new NextResponse(JSON.stringify(payload), {
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        "Content-Disposition": `attachment; filename="swire-gallery-backup-${new Date().toISOString().slice(0, 10)}.json"`,
+        "Cache-Control": "no-store",
+      },
+    })
+  } catch (error) {
+    console.error("[v0] Backup creation failed:", error)
+    return NextResponse.json(
+      { error: "Backup could not be created. Check that PostgreSQL is running and DATABASE_URL is correct." },
+      { status: 503 },
+    )
   }
-
-  const payload: BackupPayload = {
-    format: "swire-gallery-backup",
-    version: 1,
-    createdAt: new Date().toISOString(),
-    tables,
-  }
-
-  return new NextResponse(JSON.stringify(payload), {
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Content-Disposition": `attachment; filename="swire-gallery-backup-${new Date().toISOString().slice(0, 10)}.json"`,
-      "Cache-Control": "no-store",
-    },
-  })
-}
+} 
 
 export async function POST(request: Request) {
   const contentLength = Number(request.headers.get("content-length") ?? 0)
